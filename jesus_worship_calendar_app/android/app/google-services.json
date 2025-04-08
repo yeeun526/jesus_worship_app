@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "933364418292",
+    "project_id": "jesus-worship-d3648",
+    "storage_bucket": "jesus-worship-d3648.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:933364418292:android:d4325530eefef92eaf80a1",
+        "android_client_info": {
+          "package_name": "com.example.jesus_worship_calendar_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB0YA4JsDjqwhP8GbAtMUCFjtqvlo4WZLA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
