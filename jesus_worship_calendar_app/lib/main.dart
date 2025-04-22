@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart'; // ← 추가
-
+import 'firebase_options.dart';
 import 'package:provider/provider.dart';
-import 'providers/user_provider.dart';
 
+import 'providers/user_provider.dart';
 import 'pages/login.dart';
 import 'pages/sign_up.dart';
 import 'pages/calendar_page.dart';
@@ -12,6 +11,8 @@ import 'pages/attendance_page.dart';
 import 'pages/audio_page.dart';
 import 'pages/video_page.dart';
 import 'pages/task_page.dart';
+import 'pages/event_add_page.dart';
+//import 'pages/task_add_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,11 +45,12 @@ class MyApp extends StatelessWidget {
         '/login': (_) => const LoginPage(),
         '/signup': (_) => const SignUpPage(),
         '/calendar': (_) => const CalendarPage(),
+        '/event_add': (_) => const EventAddPage(),
         '/attendance': (_) => const AttendancePage(),
         '/audio': (_) => const AudioPage(),
         '/video': (_) => const VideoPage(),
         '/task': (_) => const TaskPage(),
-        // '/event_add' 등 추가 라우트도 여기에…
+        //'/task_add' : (_) => const TaskAddPage(),
       },
     );
   }
