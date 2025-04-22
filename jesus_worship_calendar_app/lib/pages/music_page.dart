@@ -11,11 +11,12 @@ class MusicPage extends StatelessWidget {
         centerTitle: true,
       ),
       body: const Center(
-        child: Text(
-          '여기에서 음원 리스트를 확인할 수 있습니다.',
-          style: TextStyle(fontSize: 20),
-        ),
-      ),
+          // child: Text(
+          //   '여기에서 음원 리스트를 확인할 수 있습니다.',
+          //   style: TextStyle(fontSize: 20),
+          // ),
+
+          ),
     );
   }
 }
