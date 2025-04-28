@@ -1,11 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart' as fb_storage;
+import 'package:file_picker/file_picker.dart';
+
 import '../models/task.dart';
 import '../models/event.dart';
 import '../models/user.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final fb_storage.FirebaseStorage _storage = fb_storage.FirebaseStorage.instance;
 
   /// 실시간으로 events 컬렉션의 문서 목록을 Event 객체 리스트로 변환
   Stream<List<Event>> eventList() {
@@ -116,24 +120,36 @@ class FirestoreService {
 
 
   // ── 음원 ──
-  Future<List<String>> searchAudios(String q) async {
-    final snap = await _db
-        .collection('audios')
-        .where('title', isGreaterThanOrEqualTo: q)
-        .where('title', isLessThanOrEqualTo: q + '\uf8ff')
-        .get();
-    return snap.docs.map((d) => d.data()['title'] as String).toList();
-  }
+   /// 임원 전용: 제목 + mp3/mp4 파일을 업로드해서 Firestore에 레코드 추가
+  Future<void> addAudioFile({
+    required String title,
+    required PlatformFile file,
+  }) async {
+    // 1) 파일 저장 경로 생성 (타임스탬프 + 원본 파일명)
+    final path = 'audios/${DateTime.now().millisecondsSinceEpoch}_${file.name}';
 
-  Future<bool> audioExists(String title) async {
-    final snap =
-        await _db.collection('audios').where('title', isEqualTo: title).get();
-    return snap.docs.isNotEmpty;
-  }
+    // 2) Storage에 업로드 (bytes가 null일 경우 에러)
+    if (file.bytes == null) {
+      throw Exception('파일 데이터가 없습니다.');
+    }
+    
+    // 3) storage에 업로드드
+    final ref = _storage.ref(path);
+    final meta = fb_storage.SettableMetadata(
+      contentType: file.extension == 'mp4' 
+        ? 'video/mp4' 
+        : 'audio/mpeg',
+    );
+    final uploadTask = ref.putData(file.bytes!, meta);
+    final snap = await uploadTask.whenComplete(() {});
 
-  Future<void> addAudio(String title) {
-    return _db.collection('audios').add({
+    // 3) 업로드된 파일의 다운로드 URL 얻기
+    final url = await snap.ref.getDownloadURL();
+
+    // 4) Firestore에 메타데이터 저장
+    await _db.collection('audios').add({
       'title': title,
+      'url': url,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
