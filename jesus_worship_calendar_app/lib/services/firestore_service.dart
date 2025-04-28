@@ -64,35 +64,27 @@ class FirestoreService {
   }
 
   // ── 출석 ──
-  // ── 학생 목록 가져오기 ──
-  /// users 컬렉션에서 role=='student' 인 문서만 조회
-  Future<List<UserModel>> getStudents() async {
-    final snap =
-        await _db.collection('users').where('role', isEqualTo: 'student').get();
-
-    return snap.docs.map((doc) {
-      final data = doc.data();
-      return UserModel(
-        uid: doc.id,
-        email: data['email'] as String,
-        role: data['role'] as String,
-        name: data['name'] as String?,
-      );
-    }).toList();
-  }
-
-  // ── 오늘 학생의 출석 상태 조회 (기존) ──
+  // ── 오늘 출석 문서 ID 계산 (uid_YYYY-MM-DD) ──
   String _attId(String uid) {
     final d = DateTime.now().toIso8601String().split('T').first;
     return '${uid}_$d';
   }
 
-  Future<String?> todayStatus(String uid) async {
-    final docSnap = await _db.collection('attendance').doc(_attId(uid)).get();
-    if (!docSnap.exists) return null;
-    return docSnap.get('attended') as String?;
+  // ── 오늘의 출석 문서를 직접 가져오는 메서드 ──
+  /// uid로 오늘의 attendance 문서를 조회해서 DocumentSnapshot으로 반환
+  Future<DocumentSnapshot<Map<String, dynamic>>> getAttendanceRecord(String uid) {
+    final docId = _attId(uid);
+    return _db.collection('attendance').doc(docId).get();
   }
 
+  /// 기존 todayStatus는 getAttendanceRecord를 사용하도록 변경
+  Future<String?> todayStatus(String uid) async {
+    final doc = await getAttendanceRecord(uid);
+    if (!doc.exists) return null;
+    return doc.get('attended') as String?;
+  }
+
+  /// 출석/지각/결석 저장
   Future<void> recordAttendance({
     required String uid,
     required String status,
@@ -104,6 +96,24 @@ class FirestoreService {
       'timestamp': FieldValue.serverTimestamp(),
     });
   }
+
+  // ── 이미 정의된 학생 목록 조회 ──
+  Future<List<UserModel>> getStudents() async {
+    final snap = await _db
+      .collection('users')
+      .where('role', isEqualTo: 'student')
+      .get();
+    return snap.docs.map((d) {
+      final data = d.data();
+      return UserModel(
+        uid: d.id,
+        email: data['email'] as String,
+        role: data['role'] as String,
+        name: data['name'] as String?,
+      );
+    }).toList();
+  }
+
 
   // ── 음원 ──
   Future<List<String>> searchAudios(String q) async {
