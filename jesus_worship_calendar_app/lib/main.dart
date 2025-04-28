@@ -11,7 +11,6 @@ import 'pages/attendance_page.dart';
 import 'pages/audio_page.dart';
 import 'pages/video_page.dart';
 import 'pages/task_page.dart';
-import 'pages/event_add_page.dart';
 //import 'pages/task_add_page.dart';
 
 void main() async {
@@ -45,7 +44,6 @@ class MyApp extends StatelessWidget {
         '/login': (_) => const LoginPage(),
         '/signup': (_) => const SignUpPage(),
         '/calendar': (_) => const CalendarPage(),
-        '/event_add': (_) => const EventAddPage(),
         '/attendance': (_) => const AttendancePage(),
         '/audio': (_) => const AudioPage(),
         '/video': (_) => const VideoPage(),

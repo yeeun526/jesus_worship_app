@@ -7,37 +7,60 @@ import '../models/event.dart';
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  /// 실시간 스트림으로 모든 이벤트 가져오기
+  /// 실시간으로 events 컬렉션의 문서 목록을 Event 객체 리스트로 변환
   Stream<List<Event>> eventList() {
     return _db
         .collection('events')
         .orderBy('date')
         .snapshots()
-        .map((snap) => snap.docs.map((d) => Event.fromFirestore(d)).toList());
+        .map((snap) => snap.docs.map((doc) {
+              final data = doc.data();
+              return Event(
+                id: doc.id,
+                title: data['title'] as String? ?? '',
+                date: (data['date'] as Timestamp).toDate(),
+                createdBy: data['createdBy'] as String?,
+              );
+            }).toList());
   }
 
-  /// 단일 이벤트 추가
+  /// 단일 Event 객체를 add
   Future<void> addEvent(Event event) {
-    return _db.collection('events').add(event.toMap());
+    return _db.collection('events').add({
+      'title': event.title,
+      'date': Timestamp.fromDate(event.date),
+      'createdBy': event.createdBy,
+    });
   }
 
-  // ── 사용자 ──
+  /// 이벤트 삭제
+  Future<void> deleteEvent(String id) {
+    return _db.collection('events').doc(id).delete();
+  }
+
+  // ── 1) 회원 가입 직후 users/{uid} 문서 생성 ──
+  /// uid, email, role, (name) 필드를 users 컬렉션에 저장
   Future<void> createUserRecord({
     required String uid,
     required String email,
     required String role,
-    String? name, // ← 추가
+    String? name, // 이름 필드를 추가로 받고 싶다면 전달
   }) {
     return _db.collection('users').doc(uid).set({
       'email': email,
       'role': role,
-      if (name != null) 'name': name, // ← 추가
+      if (name != null) 'name': name,
     });
   }
 
+  // ── 2) 로그인 시 사용자 역할(role) 조회 ──
+  /// users/{uid} 문서에서 role 필드를 읽어서 반환
+  /// 문서가 없거나 role이 없으면 'member' 기본값 반환
   Future<String> fetchUserRole(String uid) async {
     final doc = await _db.collection('users').doc(uid).get();
-    return (doc.data()?['role'] as String?) ?? 'member';
+    final data = doc.data();
+    if (data == null) return 'member';
+    return (data['role'] as String?) ?? 'member';
   }
 
   // ── 출석 ──
