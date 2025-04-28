@@ -12,7 +12,7 @@ class _SignUpPageState extends State<SignUpPage> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _nameCtrl = TextEditingController(); // ← 추가
-  String _role = 'member';
+  String _role = 'student';
 
   Future<void> signUp() async {
     final email = _emailCtrl.text.trim();
@@ -93,7 +93,8 @@ class _SignUpPageState extends State<SignUpPage> {
               value: _role,
               items: const [
                 DropdownMenuItem(value: 'admin', child: Text('임원')),
-                DropdownMenuItem(value: 'member', child: Text('일반 회원')),
+                DropdownMenuItem(value: 'student', child: Text('학생')),
+                DropdownMenuItem(value: 'parent', child: Text('부모')),
               ],
               onChanged: (v) => setState(() => _role = v!),
             ),

@@ -1,8 +1,8 @@
-// lib/services/firestore_service.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/task.dart';
 import '../models/event.dart';
+import '../models/user.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -64,28 +64,38 @@ class FirestoreService {
   }
 
   // ── 출석 ──
+  // ── 학생 목록 가져오기 ──
+  /// users 컬렉션에서 role=='student' 인 문서만 조회
+  Future<List<UserModel>> getStudents() async {
+    final snap =
+        await _db.collection('users').where('role', isEqualTo: 'student').get();
+
+    return snap.docs.map((doc) {
+      final data = doc.data();
+      return UserModel(
+        uid: doc.id,
+        email: data['email'] as String,
+        role: data['role'] as String,
+        name: data['name'] as String?,
+      );
+    }).toList();
+  }
+
+  // ── 오늘 학생의 출석 상태 조회 (기존) ──
   String _attId(String uid) {
     final d = DateTime.now().toIso8601String().split('T').first;
     return '${uid}_$d';
   }
 
-  /// 오늘 출석 상태를 가져옵니다 ('present', 'late', 'absent' 또는 null)
   Future<String?> todayStatus(String uid) async {
     final docSnap = await _db.collection('attendance').doc(_attId(uid)).get();
-
-    if (!docSnap.exists) {
-      // 아직 기록이 없으면 null 반환
-      return null;
-    }
-
-    // ▷ 또는 get() 메서드 사용 (더 간단)
+    if (!docSnap.exists) return null;
     return docSnap.get('attended') as String?;
   }
 
-  /// 출석, 지각, 결석 저장 예제
   Future<void> recordAttendance({
     required String uid,
-    required String status, // 'present', 'late', 'absent'
+    required String status,
     String? reason,
   }) {
     return _db.collection('attendance').doc(_attId(uid)).set({
