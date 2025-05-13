@@ -9,7 +9,8 @@ import '../models/user.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final fb_storage.FirebaseStorage _storage = fb_storage.FirebaseStorage.instance;
+  final fb_storage.FirebaseStorage _storage =
+      fb_storage.FirebaseStorage.instance;
 
   /// 실시간으로 events 컬렉션의 문서 목록을 Event 객체 리스트로 변환
   Stream<List<Event>> eventList() {
@@ -76,7 +77,8 @@ class FirestoreService {
 
   // ── 오늘의 출석 문서를 직접 가져오는 메서드 ──
   /// uid로 오늘의 attendance 문서를 조회해서 DocumentSnapshot으로 반환
-  Future<DocumentSnapshot<Map<String, dynamic>>> getAttendanceRecord(String uid) {
+  Future<DocumentSnapshot<Map<String, dynamic>>> getAttendanceRecord(
+      String uid) {
     final docId = _attId(uid);
     return _db.collection('attendance').doc(docId).get();
   }
@@ -103,10 +105,8 @@ class FirestoreService {
 
   // ── 이미 정의된 학생 목록 조회 ──
   Future<List<UserModel>> getStudents() async {
-    final snap = await _db
-      .collection('users')
-      .where('role', isEqualTo: 'student')
-      .get();
+    final snap =
+        await _db.collection('users').where('role', isEqualTo: 'student').get();
     return snap.docs.map((d) {
       final data = d.data();
       return UserModel(
@@ -118,9 +118,8 @@ class FirestoreService {
     }).toList();
   }
 
-
   // ── 음원 ──
-   /// 임원 전용: 제목 + mp3/mp4 파일을 업로드해서 Firestore에 레코드 추가
+  /// 임원 전용: 제목 + mp3/mp4 파일을 업로드해서 Firestore에 레코드 추가
   Future<void> addAudioFile({
     required String title,
     required PlatformFile file,
@@ -132,13 +131,11 @@ class FirestoreService {
     if (file.bytes == null) {
       throw Exception('파일 데이터가 없습니다.');
     }
-    
-    // 3) storage에 업로드드
+
+    // 3) storage에 업로드
     final ref = _storage.ref(path);
     final meta = fb_storage.SettableMetadata(
-      contentType: file.extension == 'mp4' 
-        ? 'video/mp4' 
-        : 'audio/mpeg',
+      contentType: file.extension == 'mp4' ? 'video/mp4' : 'audio/mpeg',
     );
     final uploadTask = ref.putData(file.bytes!, meta);
     final snap = await uploadTask.whenComplete(() {});

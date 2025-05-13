@@ -55,7 +55,6 @@ class DefaultFirebaseOptions {
     appId: '1:933364418292:android:d4325530eefef92eaf80a1',
     messagingSenderId: '933364418292',
     projectId: 'jesus-worship-d3648',
-    authDomain: 'jesus-worship-d3648.firebaseapp.com',
     storageBucket: 'jesus-worship-d3648.firebasestorage.app',
   );
 
@@ -64,7 +63,6 @@ class DefaultFirebaseOptions {
     appId: '1:933364418292:ios:0592fffcfd42832baf80a1',
     messagingSenderId: '933364418292',
     projectId: 'jesus-worship-d3648',
-    authDomain: 'jesus-worship-d3648.firebaseapp.com',
     storageBucket: 'jesus-worship-d3648.firebasestorage.app',
     iosBundleId: 'com.example.jesusWorshipCalendarApp',
   );
@@ -74,7 +72,6 @@ class DefaultFirebaseOptions {
     appId: '1:933364418292:ios:0592fffcfd42832baf80a1',
     messagingSenderId: '933364418292',
     projectId: 'jesus-worship-d3648',
-    authDomain: 'jesus-worship-d3648.firebaseapp.com',
     storageBucket: 'jesus-worship-d3648.firebasestorage.app',
     iosBundleId: 'com.example.jesusWorshipCalendarApp',
   );
@@ -88,4 +85,5 @@ class DefaultFirebaseOptions {
     storageBucket: 'jesus-worship-d3648.firebasestorage.app',
     measurementId: 'G-NF85MNEDD5',
   );
+
 }

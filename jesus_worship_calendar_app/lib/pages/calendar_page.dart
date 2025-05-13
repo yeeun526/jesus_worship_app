@@ -9,7 +9,6 @@ import '../widgets/permission_widget.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
 
-
 class CalendarPage extends StatefulWidget {
   const CalendarPage({Key? key}) : super(key: key);
   @override
@@ -39,7 +38,7 @@ class _CalendarPageState extends State<CalendarPage> {
     return Scaffold(
       // ── AppBar: 제목 + 로그아웃 버튼 ──
       appBar: AppBar(
-        title: const Text('메인 캘린더'),
+        title: const Text('jesus worship'),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -110,19 +109,18 @@ class _CalendarPageState extends State<CalendarPage> {
                     : ListView(
                         children: _getEventsForDay(_selectedDay!).map((e) {
                           return ListTile(
-                            title: Text(e.title),
-                            subtitle: Text(
-                              '${e.date.hour.toString().padLeft(2, '0')}:'
-                              '${e.date.minute.toString().padLeft(2, '0')}',
-                            ),
-                            trailing: PermissionWidget(
-                              requiredRole: 'admin',
-                              child: IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.redAccent),
-                              onPressed: () => _confirmDelete(e),   
-                              )
-                            )                      
-                          );
+                              title: Text(e.title),
+                              subtitle: Text(
+                                '${e.date.hour.toString().padLeft(2, '0')}:'
+                                '${e.date.minute.toString().padLeft(2, '0')}',
+                              ),
+                              trailing: PermissionWidget(
+                                  requiredRole: 'admin',
+                                  child: IconButton(
+                                    icon: const Icon(Icons.delete,
+                                        color: Colors.redAccent),
+                                    onPressed: () => _confirmDelete(e),
+                                  )));
                         }).toList(),
                       ),
               ),
@@ -131,12 +129,14 @@ class _CalendarPageState extends State<CalendarPage> {
 
               // 3) 하단 네비게이션 버튼
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     ElevatedButton(
-                      onPressed: () => Navigator.pushNamed(context, '/attendance'),
+                      onPressed: () =>
+                          Navigator.pushNamed(context, '/attendance'),
                       child: const Text('출석'),
                     ),
                     ElevatedButton(
@@ -171,7 +171,7 @@ class _CalendarPageState extends State<CalendarPage> {
             },
             child: const Icon(Icons.add),
           ),
-        ),        
+        ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
@@ -236,8 +236,12 @@ class _CalendarPageState extends State<CalendarPage> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
-            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('저장')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('취소')),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('저장')),
           ],
         ),
       ),
@@ -269,8 +273,12 @@ class _CalendarPageState extends State<CalendarPage> {
         title: const Text('일정 삭제'),
         content: Text('“${e.title}” 일정을 삭제하시겠습니까?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('삭제')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('삭제')),
         ],
       ),
     );
