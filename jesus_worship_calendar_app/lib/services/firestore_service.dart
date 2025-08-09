@@ -2,15 +2,19 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart' as fb_storage;
 import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 
 import '../models/task.dart';
 import '../models/event.dart';
 import '../models/user.dart';
+import '../models/audio.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final fb_storage.FirebaseStorage _storage =
       fb_storage.FirebaseStorage.instance;
+
+  FirestoreService();
 
   /// 실시간으로 events 컬렉션의 문서 목록을 Event 객체 리스트로 변환
   Stream<List<Event>> eventList() {
@@ -118,32 +122,38 @@ class FirestoreService {
     }).toList();
   }
 
-  // ── 음원 ──
-  /// 임원 전용: 제목 + mp3/mp4 파일을 업로드해서 Firestore에 레코드 추가
+  // 4) Audio(음원) 관련
+  /// * 음원 업로드
+  ///  - Storage에 파일 저장
+  ///  - 다운로드 URL을 받아와서 Firestore 'audios' 컬렉션에 메타데이터 저장
   Future<void> addAudioFile({
     required String title,
     required PlatformFile file,
   }) async {
-    // 1) 파일 저장 경로 생성 (타임스탬프 + 원본 파일명)
-    final path = 'audios/${DateTime.now().millisecondsSinceEpoch}_${file.name}';
+    // 1) 파일 경로 생성 (audios/{timestamp}_{원본파일명})
+    final fileName = file.name;
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final path = 'audios/${timestamp}_$fileName';
 
-    // 2) Storage에 업로드 (bytes가 null일 경우 에러)
+    // 2) bytes가 null이면 에러
     if (file.bytes == null) {
       throw Exception('파일 데이터가 없습니다.');
     }
 
-    // 3) storage에 업로드
-    final ref = _storage.ref(path);
+    // 3) Storage에 업로드
+    final ref = _storage.ref().child(path);
     final meta = fb_storage.SettableMetadata(
-      contentType: file.extension == 'mp4' ? 'video/mp4' : 'audio/mpeg',
+      contentType: (file.extension == 'mp4') ? 'video/mp4' : 'audio/mpeg',
     );
     final uploadTask = ref.putData(file.bytes!, meta);
+
+    // 4) 업로드 완료 대기
     final snap = await uploadTask.whenComplete(() {});
 
-    // 3) 업로드된 파일의 다운로드 URL 얻기
+    // 5) 다운로드 URL 가져오기
     final url = await snap.ref.getDownloadURL();
 
-    // 4) Firestore에 메타데이터 저장
+    // 6) Firestore에 메타데이터 저장
     await _db.collection('audios').add({
       'title': title,
       'url': url,
@@ -151,7 +161,64 @@ class FirestoreService {
     });
   }
 
+  /// * 모든 음원 목록 가져오기 (최신 순)
+  Future<List<Audio>> fetchAllAudios() async {
+    final snap = await _db
+        .collection('audios')
+        .orderBy('createdAt', descending: true)
+        .get();
+    return snap.docs.map((doc) => Audio.fromFirestore(doc)).toList();
+  }
+
+  /// * 제목(q)으로 검색하여 AudioModel 리스트 반환
+  Future<List<Audio>> searchAudios(String q) async {
+    final snap = await _db
+        .collection('audios')
+        .where('title', isGreaterThanOrEqualTo: q)
+        .where('title', isLessThanOrEqualTo: q + '\uf8ff')
+        .orderBy('title')
+        .get();
+    return snap.docs.map((doc) => Audio.fromFirestore(doc)).toList();
+  }
+
+  /// * 중복 제목 검사
+  Future<bool> audioExists(String title) async {
+    final snap =
+        await _db.collection('audios').where('title', isEqualTo: title).get();
+    return snap.docs.isNotEmpty;
+  }
+
+  /// 오디오 삭제 메서드
+  Future<void> deleteAudioFile(String audioId) async {
+    await _db.collection('audios').doc(audioId).delete();
+  }
+
   // ── 영상 ──
+  // 동영상 업로드 메서드
+  Future<void> addVideo(Map<String, dynamic> data, PlatformFile file) async {
+    // 1) 동영상 파일 경로 생성
+    final fileName = file.name;
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final path = 'videos/${timestamp}_$fileName';
+
+    // 2) 파일 업로드
+    final ref = _storage.ref().child(path);
+    final uploadTask = ref.putData(file.bytes!);
+
+    // 3) 업로드 완료 대기
+    final snap = await uploadTask.whenComplete(() {});
+
+    // 4) 다운로드 URL 가져오기
+    final url = await snap.ref.getDownloadURL();
+
+    // 5) Firestore에 메타데이터 저장
+    await _db.collection('videos').add({
+      'title': data['title'],
+      'url': url,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<List<String>> searchVideos(String q) async {
     final snap = await _db
         .collection('videos')
@@ -167,11 +234,39 @@ class FirestoreService {
     return snap.docs.isNotEmpty;
   }
 
-  Future<void> addVideo(String title) {
-    return _db.collection('videos').add({
-      'title': title,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+  // 동영상 목록을 가져오는 메서드
+  Future<List<Map<String, dynamic>>> fetchVideos() async {
+    try {
+      // 'videos' 컬렉션에서 모든 동영상 문서 가져오기
+      final snapshot = await _db.collection('videos').get();
+
+      // 동영상 데이터를 List<Map<String, dynamic>> 형태로 변환하여 반환
+      return snapshot.docs.map((doc) {
+        return {
+          'id': doc.id, // 동영상 ID
+          'title': doc['title'], // 동영상 제목
+          'url': doc['url'], // 동영상 URL
+        };
+      }).toList();
+    } catch (e) {
+      throw Exception('동영상 목록 가져오기 실패: $e');
+    }
+  }
+
+  // 동영상 삭제
+  Future<void> deleteVideo(String videoId, String videoUrl) async {
+    try {
+      // Firestore에서 동영상 메타데이터 삭제
+      await _db.collection('videos').doc(videoId).delete();
+
+      // Firebase Storage에서 동영상 파일 삭제
+      final ref = _storage.refFromURL(videoUrl); // 동영상 URL을 사용해 참조 가져오기
+      await ref.delete(); // Firebase Storage에서 동영상 파일 삭제
+
+      print('동영상 삭제 완료');
+    } catch (e) {
+      throw Exception('동영상 삭제 실패: $e');
+    }
   }
 
   // ── 과제 추가 ──
