@@ -18,7 +18,7 @@
 ## 📷 시연 화면
 
 1. **로그인 화면**  
-   <img src="images/login.jpg" width="250"/>
+   <img src="jesus_worship_calendar_app/images/login.jpg" width="250"/>
 
 2. **캘린더 화면 (일정 확인)**  
    <img src="images/calendar1.jpg" width="250"/>
