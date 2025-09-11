@@ -15,3 +15,31 @@
 - 👍 좋아요 기능 (영상/자료 반응)  
 
 
+## 📷 시연 화면
+
+1. **로그인/회원가입 화면**  
+   <img src="jesus_worship_calendar_app/images/login.jpg" width="220"/>
+   <img src="jesus_worship_calendar_app/images/signup.jpg" width="220"/>
+
+2. **캘린더 화면 (일정 확인)**  
+   <img src="jesus_worship_calendar_app/images/calendar1.jpg" width="220"/>
+   <img src="jesus_worship_calendar_app/images/calendar2.jpg" width="220"/>
+   
+3. **출석 체크 화면**  
+   <img src="jesus_worship_calendar_app/images/attendance1.jpg" width="220"/>
+   <img src="jesus_worship_calendar_app/images/attendance2.jpg" width="220"/>
+
+4. **음원 관리 화면**  
+   <img src="jesus_worship_calendar_app/images/audio1.jpg" width="200"/>
+   <img src="jesus_worship_calendar_app/images/audio2.jpg" width="200"/>
+   <img src="jesus_worship_calendar_app/images/audio3.jpg" width="200"/>
+   <img src="jesus_worship_calendar_app/images/audio4.jpg" width="200"/>
+   
+
+5. **영상 관리 화면**  
+   <img src="jesus_worship_calendar_app/images/video1.jpg" width="200"/>
+   <img src="jesus_worship_calendar_app/images/video2.jpg" width="200"/>
+   <img src="jesus_worship_calendar_app/images/video3.jpg" width="200"/>
+   <img src="jesus_worship_calendar_app/images/video4.jpg" width="200"/>
+   
+
