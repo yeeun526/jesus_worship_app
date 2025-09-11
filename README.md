@@ -15,3 +15,20 @@
 - 👍 좋아요 기능 (영상/자료 반응)  
 
 
+## 📷 시연 화면
+
+1. **로그인 화면**  
+   <img src="images/login.jpg" width="250"/>
+
+2. **캘린더 화면 (일정 확인)**  
+   <img src="images/calendar1.jpg" width="250"/>
+
+3. **출석 체크 화면**  
+   <img src="images/attendance.jpg" width="250"/>
+
+4. **음원 관리 화면**  
+   <img src="images/audio.jpg" width="250"/>
+
+5. **영상 관리 화면**  
+   <img src="images/video.jpg" width="250"/>
+
