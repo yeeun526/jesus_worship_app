@@ -42,4 +42,8 @@
    <img src="jesus_worship_calendar_app/images/video3.jpg" width="200"/>
    <img src="jesus_worship_calendar_app/images/video4.jpg" width="200"/>
    
+## 🚀 빌드 & 실행 기록
+- 2025-09-11: app-debug.apk 생성, 갤럭시에서 실행 확인
+- 기능 테스트: 로그인/캘린더/출석/자료 확인 정상 동작
+- 발견 이슈: 동영상 업로드 안 됨, 홈화면에서 뒤로가기 버튼 생성됨
 
