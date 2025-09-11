@@ -18,41 +18,49 @@ class AudioPage extends StatefulWidget {
 }
 
 class _AudioPageState extends State<AudioPage> {
-  final _audioService = FirestoreService(); // FirestoreService 사용
+  final _audioService = FirestoreService();
   final _player = AudioPlayer();
+
   bool _isAdmin = false;
   bool _isPlaying = false;
   bool _isPaused = false;
+
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
+
   List<Audio> _audios = []; // 전체 음원 목록
   List<Audio> _filteredAudios = []; // 필터된 음원 목록
-  final _searchCtrl = TextEditingController(); // 검색어를 입력받을 TextController
+  final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _checkAdmin();
-    _loadAudios(); // 음원 목록 로딩
+    _loadAudios();
+
     _player.positionStream.listen((position) {
-      if (mounted) {
-        setState(() {
-          _position = position;
-        });
-      }
+      if (!mounted) return;
+      setState(() => _position = position);
     });
     _player.durationStream.listen((duration) {
-      if (mounted) {
-        setState(() {
-          _duration = duration ?? Duration.zero;
-        });
-      }
+      if (!mounted) return;
+      setState(() => _duration = duration ?? Duration.zero);
+    });
+    _player.playerStateStream.listen((state) {
+      if (!mounted) return;
+      final playing = state.playing;
+      setState(() {
+        _isPlaying = playing;
+        _isPaused =
+            !playing && _position > Duration.zero && _position < _duration;
+      });
     });
   }
 
   @override
   void dispose() {
     _player.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -61,31 +69,29 @@ class _AudioPageState extends State<AudioPage> {
     if (uid == null) return;
     final doc =
         await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    if (!mounted) return;
     setState(() {
       _isAdmin = (doc.data()?['role'] as String?) == 'admin';
     });
   }
 
-  // 음원 목록 로드
   Future<void> _loadAudios() async {
     final audios = await _audioService.fetchAllAudios();
+    if (!mounted) return;
     setState(() {
       _audios = audios;
-      _filteredAudios = audios; // 전체 음원 목록을 필터링된 목록에 초기화
+      _filteredAudios = audios;
     });
   }
 
-  // 검색 함수
   void _search() {
-    final query = _searchCtrl.text.trim().toLowerCase();
+    final q = _searchCtrl.text.trim().toLowerCase();
     setState(() {
-      _filteredAudios = _audios
-          .where((audio) => audio.title.toLowerCase().contains(query))
-          .toList();
+      _filteredAudios =
+          _audios.where((a) => a.title.toLowerCase().contains(q)).toList();
     });
   }
 
-  // 음원 추가 함수
   Future<void> _promptUpload() async {
     final titleCtrl = TextEditingController();
     PlatformFile? pickedFile;
@@ -93,7 +99,7 @@ class _AudioPageState extends State<AudioPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) {
-        return StatefulBuilder(builder: (ctx, setState) {
+        return StatefulBuilder(builder: (ctx, setLocal) {
           return AlertDialog(
             title: const Text('오디오 업로드'),
             content: Column(
@@ -102,6 +108,7 @@ class _AudioPageState extends State<AudioPage> {
                 TextField(
                   controller: titleCtrl,
                   decoration: const InputDecoration(labelText: '제목'),
+                  onChanged: (_) => setLocal(() {}),
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton.icon(
@@ -111,11 +118,10 @@ class _AudioPageState extends State<AudioPage> {
                     final result = await FilePicker.platform.pickFiles(
                       type: FileType.custom,
                       allowedExtensions: ['mp3', 'wav', 'mp4'],
+                      withData: true,
                     );
                     if (result != null && result.files.isNotEmpty) {
-                      setState(() {
-                        pickedFile = result.files.single;
-                      });
+                      setLocal(() => pickedFile = result.files.single);
                     }
                   },
                 ),
@@ -149,56 +155,51 @@ class _AudioPageState extends State<AudioPage> {
     );
     if (ok != true) return;
 
-    final title = titleCtrl.text.trim();
     try {
-      await _audioService.addAudioFile(title: title, file: pickedFile!);
+      await _audioService.addAudioFile(
+          title: titleCtrl.text.trim(), file: pickedFile!);
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('업로드 성공')));
-      _loadAudios(); // 음원 추가 후 목록 갱신
+      _loadAudios();
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('업로드 실패: $e')));
     }
   }
 
-  // 음원 제어 (일시정지 / 재개)
   Future<void> _togglePlayPause() async {
     if (_isPlaying) {
       await _player.pause();
     } else {
       await _player.play();
     }
-    setState(() {
-      _isPlaying = !_isPlaying;
-      _isPaused = !_isPlaying;
-    });
+    // playerStateStream에서 상태 업데이트됨
   }
 
-  // 음악 슬라이더 조정
   Future<void> _seekTo(Duration position) async {
     await _player.seek(position);
   }
 
-  // 음원 변경 시 현재 음원을 멈추고 새로운 음원으로 설정
-  Future<void> _playNewAudio(String audioUrl) async {
-    await _player.stop(); // 기존 음원 멈추기
-    await _player.setUrl(audioUrl); // 새로운 음원 설정
-    await _player.play(); // 새 음원 재생
-    setState(() {
-      _isPlaying = true;
-      _isPaused = false;
-    });
+  Future<void> _playNewAudio(String url) async {
+    await _player.stop();
+    await _player.setUrl(url);
+    await _player.play();
+    // 상태는 스트림으로 반영
   }
 
-  // 음원 삭제 함수
   Future<void> _deleteAudio(String audioId) async {
-    await _player.stop(); // 음원 멈추기
+    // 재생 중이면 정지
+    await _player.stop();
     try {
-      await _audioService.deleteAudioFile(audioId); // 음원 삭제
+      await _audioService.deleteAudioFile(audioId);
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('음원 삭제 완료')));
-      _loadAudios(); // 음원 삭제 후 목록 갱신
+      _loadAudios();
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('음원 삭제 실패: $e')));
     }
@@ -206,88 +207,99 @@ class _AudioPageState extends State<AudioPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('음원 페이지'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // 뒤로가기 버튼을 누르면 CalendarPage로 이동
-            Navigator.pushNamed(context, '/calendar'); // '/calendar' 라우팅 경로로 이동
-          },
+    return WillPopScope(
+      // 시스템 뒤로가기/스와이프로 나가기 직전에 재생 중지
+      onWillPop: () async {
+        await _player.stop();
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('음원 페이지'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () async {
+              await _player.stop(); // 먼저 멈추기
+              if (!mounted) return;
+              Navigator.pushReplacementNamed(context, '/calendar'); // 교체 이동
+            },
+          ),
         ),
-      ),
-      floatingActionButton: _isAdmin
-          ? FloatingActionButton(
-              onPressed: _promptUpload,
-              child: const Icon(Icons.upload_file),
-            )
-          : null,
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: TextField(
-              controller: _searchCtrl,
-              decoration: const InputDecoration(labelText: '검색'),
-              onChanged: (value) => _search(), // 검색어 변경 시 실시간 검색
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _filteredAudios.length,
-              itemBuilder: (ctx, idx) {
-                final audio = _filteredAudios[idx];
-                return ListTile(
-                  title: Text(audio.title),
-                  trailing: _isAdmin
-                      ? IconButton(
-                          icon: const Icon(Icons.delete),
-                          onPressed: () => _deleteAudio(audio.id), // 삭제 버튼
-                        )
-                      : null,
-                  onTap: () async {
-                    _playNewAudio(audio.url); // 선택된 음원 재생
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: (_isPlaying || _isPaused)
-          ? Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Slider(
-                    value: _position.inSeconds.toDouble(),
-                    min: 0,
-                    max: _duration.inSeconds.toDouble(),
-                    onChanged: (value) {
-                      final position = Duration(seconds: value.toInt());
-                      _seekTo(position);
-                    },
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          _isPlaying ? Icons.pause : Icons.play_arrow,
-                        ),
-                        onPressed: _togglePlayPause,
-                      ),
-                      Text(
-                        '${_position.inMinutes}:${(_position.inSeconds % 60).toString().padLeft(2, '0')} / ${_duration.inMinutes}:${(_duration.inSeconds % 60).toString().padLeft(2, '0')}',
-                      ),
-                    ],
-                  ),
-                ],
+        floatingActionButton: _isAdmin
+            ? FloatingActionButton(
+                onPressed: _promptUpload,
+                child: const Icon(Icons.upload_file),
+              )
+            : null,
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: const InputDecoration(labelText: '검색'),
+                onChanged: (_) => _search(),
               ),
-            )
-          : null,
+            ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _filteredAudios.length,
+                itemBuilder: (ctx, idx) {
+                  final audio = _filteredAudios[idx];
+                  return ListTile(
+                    title: Text(audio.title),
+                    trailing: _isAdmin
+                        ? IconButton(
+                            icon: const Icon(Icons.delete),
+                            onPressed: () => _deleteAudio(audio.id),
+                          )
+                        : null,
+                    onTap: () => _playNewAudio(audio.url),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        bottomNavigationBar: (_isPlaying || _isPaused)
+            ? Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Slider(
+                      value: _position.inSeconds
+                          .clamp(0, _duration.inSeconds)
+                          .toDouble(),
+                      min: 0,
+                      max: (_duration.inSeconds == 0 ? 1 : _duration.inSeconds)
+                          .toDouble(),
+                      onChanged: (v) => _seekTo(Duration(seconds: v.toInt())),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon:
+                              Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
+                          onPressed: _togglePlayPause,
+                        ),
+                        Text(
+                          '${_mmss(_position)} / ${_mmss(_duration)}',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              )
+            : null,
+      ),
     );
+  }
+
+  String _mmss(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 }

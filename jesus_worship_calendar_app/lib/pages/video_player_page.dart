@@ -23,6 +23,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       ..initialize().then((_) {
         setState(() {});
       });
+    _controller.addListener(() {
+      setState(() {}); // 실행바와 시간 업데이트
+    });
   }
 
   @override
@@ -41,6 +44,13 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
       }
       _isPlaying = !_isPlaying;
     });
+  }
+
+  String _formatDuration(Duration position) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(position.inMinutes.remainder(60));
+    final seconds = twoDigits(position.inSeconds.remainder(60));
+    return "$minutes:$seconds";
   }
 
   @override
@@ -62,12 +72,24 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                     aspectRatio: _controller.value.aspectRatio,
                     child: VideoPlayer(_controller),
                   ),
+                  // 실행바 추가
+                  VideoProgressIndicator(
+                    _controller,
+                    allowScrubbing: true, // 드래그해서 이동 가능
+                    colors: VideoProgressColors(
+                      playedColor: Colors.blue,
+                      bufferedColor: Colors.grey,
+                      backgroundColor: Colors.black26,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   IconButton(
                     icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
                     onPressed: _togglePlayPause,
+                    iconSize: 40,
                   ),
                   Text(
-                    '${_controller.value.position.inMinutes}:${(_controller.value.position.inSeconds % 60).toString().padLeft(2, '0')} / ${_controller.value.duration.inMinutes}:${(_controller.value.duration.inSeconds % 60).toString().padLeft(2, '0')}',
+                    '${_formatDuration(_controller.value.position)} / ${_formatDuration(_controller.value.duration)}',
                     style: const TextStyle(fontSize: 16),
                   ),
                 ],
