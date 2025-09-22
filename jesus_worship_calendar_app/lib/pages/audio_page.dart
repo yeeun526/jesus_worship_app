@@ -1,5 +1,6 @@
 // lib/pages/audio_page.dart
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -24,6 +25,7 @@ class _AudioPageState extends State<AudioPage> {
   bool _isAdmin = false;
   bool _isPlaying = false;
   bool _isPaused = false;
+  bool _isUploading = false; // 업로드 진행 중 중앙 로딩 오버레이용
 
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
@@ -118,7 +120,7 @@ class _AudioPageState extends State<AudioPage> {
                     final result = await FilePicker.platform.pickFiles(
                       type: FileType.custom,
                       allowedExtensions: ['mp3', 'wav', 'mp4'],
-                      withData: true,
+                      withData: kIsWeb ? true : false,
                     );
                     if (result != null && result.files.isNotEmpty) {
                       setLocal(() => pickedFile = result.files.single);
@@ -156,8 +158,11 @@ class _AudioPageState extends State<AudioPage> {
     if (ok != true) return;
 
     try {
+      setState(() => _isUploading = true); // 업로드 시작: 중앙 로딩 표시
       await _audioService.addAudioFile(
-          title: titleCtrl.text.trim(), file: pickedFile!);
+        title: titleCtrl.text.trim(),
+        file: pickedFile!,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('업로드 성공')));
@@ -166,6 +171,8 @@ class _AudioPageState extends State<AudioPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('업로드 실패: $e')));
+    } finally {
+      if (mounted) setState(() => _isUploading = false); // 업로드 끝: 로딩 제거
     }
   }
 
@@ -175,7 +182,6 @@ class _AudioPageState extends State<AudioPage> {
     } else {
       await _player.play();
     }
-    // playerStateStream에서 상태 업데이트됨
   }
 
   Future<void> _seekTo(Duration position) async {
@@ -186,11 +192,9 @@ class _AudioPageState extends State<AudioPage> {
     await _player.stop();
     await _player.setUrl(url);
     await _player.play();
-    // 상태는 스트림으로 반영
   }
 
   Future<void> _deleteAudio(String audioId) async {
-    // 재생 중이면 정지
     await _player.stop();
     try {
       await _audioService.deleteAudioFile(audioId);
@@ -213,86 +217,128 @@ class _AudioPageState extends State<AudioPage> {
         await _player.stop();
         return true;
       },
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('음원 페이지'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () async {
-              await _player.stop(); // 먼저 멈추기
-              if (!mounted) return;
-              Navigator.pushReplacementNamed(context, '/calendar'); // 교체 이동
-            },
-          ),
-        ),
-        floatingActionButton: _isAdmin
-            ? FloatingActionButton(
-                onPressed: _promptUpload,
-                child: const Icon(Icons.upload_file),
-              )
-            : null,
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: TextField(
-                controller: _searchCtrl,
-                decoration: const InputDecoration(labelText: '검색'),
-                onChanged: (_) => _search(),
-              ),
-            ),
-            Expanded(
-              child: ListView.builder(
-                itemCount: _filteredAudios.length,
-                itemBuilder: (ctx, idx) {
-                  final audio = _filteredAudios[idx];
-                  return ListTile(
-                    title: Text(audio.title),
-                    trailing: _isAdmin
-                        ? IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () => _deleteAudio(audio.id),
-                          )
-                        : null,
-                    onTap: () => _playNewAudio(audio.url),
-                  );
+      child: Stack(
+        children: [
+          Scaffold(
+            appBar: AppBar(
+              title: const Text('음원 페이지'),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () async {
+                  await _player.stop(); // 먼저 멈추기
+                  if (!mounted) return;
+                  Navigator.pushReplacementNamed(context, '/calendar'); // 교체 이동
                 },
               ),
             ),
-          ],
-        ),
-        bottomNavigationBar: (_isPlaying || _isPaused)
-            ? Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Slider(
-                      value: _position.inSeconds
-                          .clamp(0, _duration.inSeconds)
-                          .toDouble(),
-                      min: 0,
-                      max: (_duration.inSeconds == 0 ? 1 : _duration.inSeconds)
-                          .toDouble(),
-                      onChanged: (v) => _seekTo(Duration(seconds: v.toInt())),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        IconButton(
-                          icon:
-                              Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
-                          onPressed: _togglePlayPause,
-                        ),
-                        Text(
-                          '${_mmss(_position)} / ${_mmss(_duration)}',
-                        ),
-                      ],
-                    ),
-                  ],
+            floatingActionButton: _isAdmin
+                ? FloatingActionButton(
+                    onPressed: _promptUpload,
+                    child: const Icon(Icons.upload_file),
+                  )
+                : null,
+            body: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    decoration: const InputDecoration(labelText: '검색'),
+                    onChanged: (_) => _search(),
+                  ),
                 ),
-              )
-            : null,
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.only(
+                        bottom: 120), // 오디오 바와 겹치지 않도록 하단 여백
+                    itemCount: _filteredAudios.length,
+                    itemBuilder: (ctx, idx) {
+                      final audio = _filteredAudios[idx];
+                      return ListTile(
+                        title: Text(audio.title),
+                        trailing: audio.url.isEmpty // URL이 비어있으면 업로드 중
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : _isAdmin
+                                ? IconButton(
+                                    icon: const Icon(Icons.delete),
+                                    onPressed: () => _deleteAudio(audio.id),
+                                  )
+                                : null,
+                        onTap: audio.url.isNotEmpty
+                            ? () => _playNewAudio(audio.url)
+                            : null,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            bottomNavigationBar: (_isPlaying || _isPaused)
+                ? SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      child: Material(
+                        elevation: 6,
+                        borderRadius: BorderRadius.circular(16),
+                        clipBehavior: Clip.antiAlias,
+                        color: Theme.of(context).colorScheme.surface,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Slider(
+                                value: _position.inSeconds
+                                    .clamp(0, _duration.inSeconds)
+                                    .toDouble(),
+                                min: 0,
+                                max: (_duration.inSeconds == 0
+                                        ? 1
+                                        : _duration.inSeconds)
+                                    .toDouble(),
+                                onChanged: (v) =>
+                                    _seekTo(Duration(seconds: v.toInt())),
+                              ),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(_isPlaying
+                                        ? Icons.pause
+                                        : Icons.play_arrow),
+                                    onPressed: _togglePlayPause,
+                                  ),
+                                  Text(
+                                    '${_mmss(_position)} / ${_mmss(_duration)}',
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                : null,
+          ),
+
+          // 업로드 중 중앙 로딩 오버레이
+          if (_isUploading)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+        ],
       ),
     );
   }

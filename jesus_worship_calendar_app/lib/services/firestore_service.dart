@@ -2,7 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart' as fb_storage;
 import 'package:file_picker/file_picker.dart';
-import 'dart:io';
+import 'dart:io' show File;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:path/path.dart' as p;
 
 import '../models/task.dart';
 import '../models/event.dart';
@@ -16,7 +18,8 @@ class FirestoreService {
 
   FirestoreService();
 
-  /// 실시간으로 events 컬렉션의 문서 목록을 Event 객체 리스트로 변환
+  // ───────────────────────────────── Events ─────────────────────────────────
+
   Stream<List<Event>> eventList() {
     return _db
         .collection('events')
@@ -33,7 +36,6 @@ class FirestoreService {
             }).toList());
   }
 
-  /// 단일 Event 객체를 add
   Future<void> addEvent(Event event) {
     return _db.collection('events').add({
       'title': event.title,
@@ -42,18 +44,17 @@ class FirestoreService {
     });
   }
 
-  /// 이벤트 삭제
   Future<void> deleteEvent(String id) {
     return _db.collection('events').doc(id).delete();
   }
 
-  // ── 1) 회원 가입 직후 users/{uid} 문서 생성 ──
-  /// uid, email, role, (name) 필드를 users 컬렉션에 저장
+  // ───────────────────────────────── Users ─────────────────────────────────
+
   Future<void> createUserRecord({
     required String uid,
     required String email,
     required String role,
-    String? name, // 이름 필드를 추가로 받고 싶다면 전달
+    String? name,
   }) {
     return _db.collection('users').doc(uid).set({
       'email': email,
@@ -62,9 +63,6 @@ class FirestoreService {
     });
   }
 
-  // ── 2) 로그인 시 사용자 역할(role) 조회 ──
-  /// users/{uid} 문서에서 role 필드를 읽어서 반환
-  /// 문서가 없거나 role이 없으면 'member' 기본값 반환
   Future<String> fetchUserRole(String uid) async {
     final doc = await _db.collection('users').doc(uid).get();
     final data = doc.data();
@@ -72,42 +70,6 @@ class FirestoreService {
     return (data['role'] as String?) ?? 'member';
   }
 
-  // ── 출석 ──
-  // ── 오늘 출석 문서 ID 계산 (uid_YYYY-MM-DD) ──
-  String _attId(String uid) {
-    final d = DateTime.now().toIso8601String().split('T').first;
-    return '${uid}_$d';
-  }
-
-  // ── 오늘의 출석 문서를 직접 가져오는 메서드 ──
-  /// uid로 오늘의 attendance 문서를 조회해서 DocumentSnapshot으로 반환
-  Future<DocumentSnapshot<Map<String, dynamic>>> getAttendanceRecord(
-      String uid) {
-    final docId = _attId(uid);
-    return _db.collection('attendance').doc(docId).get();
-  }
-
-  /// 기존 todayStatus는 getAttendanceRecord를 사용하도록 변경
-  Future<String?> todayStatus(String uid) async {
-    final doc = await getAttendanceRecord(uid);
-    if (!doc.exists) return null;
-    return doc.get('attended') as String?;
-  }
-
-  /// 출석/지각/결석 저장
-  Future<void> recordAttendance({
-    required String uid,
-    required String status,
-    String? reason,
-  }) {
-    return _db.collection('attendance').doc(_attId(uid)).set({
-      'attended': status,
-      if (reason != null) 'reason': reason,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
-  }
-
-  // ── 이미 정의된 학생 목록 조회 ──
   Future<List<UserModel>> getStudents() async {
     final snap =
         await _db.collection('users').where('role', isEqualTo: 'student').get();
@@ -122,46 +84,160 @@ class FirestoreService {
     }).toList();
   }
 
-  // 4) Audio(음원) 관련
-  /// * 음원 업로드
-  ///  - Storage에 파일 저장
-  ///  - 다운로드 URL을 받아와서 Firestore 'audios' 컬렉션에 메타데이터 저장
+  // ─────────────────────────────── Attendance ───────────────────────────────
+
+  String _attId(String uid) {
+    final d = DateTime.now().toIso8601String().split('T').first;
+    return '${uid}_$d';
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>> getAttendanceRecord(
+      String uid) {
+    final docId = _attId(uid);
+    return _db.collection('attendance').doc(docId).get();
+  }
+
+  Future<String?> todayStatus(String uid) async {
+    final doc = await getAttendanceRecord(uid);
+    if (!doc.exists) return null;
+    return doc.get('attended') as String?;
+  }
+
+  Future<void> recordAttendance({
+    required String uid,
+    required String status,
+    String? reason,
+  }) {
+    return _db.collection('attendance').doc(_attId(uid)).set({
+      'attended': status,
+      if (reason != null) 'reason': reason,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // ──────────────────────────────── Audios ─────────────────────────────────
+
+  /// 파일 업로드 (경로 기반 우선, 실패 시 bytes 폴백, 진행률 콜백 지원)
   Future<void> addAudioFile({
     required String title,
     required PlatformFile file,
+    void Function(double progress)? onProgress, // 0.0 ~ 1.0
   }) async {
-    // 1) 파일 경로 생성 (audios/{timestamp}_{원본파일명})
-    final fileName = file.name;
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final path = 'audios/${timestamp}_$fileName';
+    final safeName = file.name.replaceAll(RegExp(r'[^\w\.\-]'), '_');
+    final storagePath = 'audios/${timestamp}_$safeName';
 
-    // 2) bytes가 null이면 에러
-    if (file.bytes == null) {
-      throw Exception('파일 데이터가 없습니다.');
+    final ext = (file.extension ?? '').toLowerCase();
+    final contentType = _guessAudioContentType(ext);
+
+    final ref = _storage.ref(storagePath);
+    final meta = fb_storage.SettableMetadata(contentType: contentType);
+
+    fb_storage.UploadTask uploadTask;
+
+    if (kIsWeb) {
+      if (file.bytes == null) {
+        throw Exception('웹에서는 withData:true가 필요합니다 (bytes가 null).');
+      }
+      uploadTask = ref.putData(file.bytes!, meta);
+    } else {
+      final path = file.path;
+      if (path != null && path.isNotEmpty) {
+        try {
+          final f = File(path);
+          if (await f.exists()) {
+            uploadTask = ref.putFile(f, meta);
+          } else {
+            if (file.bytes != null) {
+              uploadTask = ref.putData(file.bytes!, meta);
+            } else {
+              final bytes = await File(path).readAsBytes();
+              uploadTask = ref.putData(bytes, meta);
+            }
+          }
+        } catch (_) {
+          if (file.bytes == null) {
+            throw Exception('파일을 열 수 없습니다. bytes가 필요합니다.');
+          }
+          uploadTask = ref.putData(file.bytes!, meta);
+        }
+      } else {
+        if (file.bytes == null) {
+          throw Exception('파일 데이터가 없습니다. (bytes/path 모두 null)');
+        }
+        uploadTask = ref.putData(file.bytes!, meta);
+      }
     }
 
-    // 3) Storage에 업로드
-    final ref = _storage.ref().child(path);
-    final meta = fb_storage.SettableMetadata(
-      contentType: (file.extension == 'mp4') ? 'video/mp4' : 'audio/mpeg',
-    );
-    final uploadTask = ref.putData(file.bytes!, meta);
+    if (onProgress != null) {
+      uploadTask.snapshotEvents.listen((s) {
+        final total = s.totalBytes;
+        if (total > 0) onProgress(s.bytesTransferred / total);
+      });
+    }
 
-    // 4) 업로드 완료 대기
     final snap = await uploadTask.whenComplete(() {});
-
-    // 5) 다운로드 URL 가져오기
     final url = await snap.ref.getDownloadURL();
 
-    // 6) Firestore에 메타데이터 저장
     await _db.collection('audios').add({
       'title': title,
       'url': url,
+      'ext': ext,
+      'size': file.size,
+      'storagePath': storagePath,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
 
-  /// * 모든 음원 목록 가져오기 (최신 순)
+  /// 경로 업로드 (웹 미지원) — path 패키지 사용
+  Future<void> addAudioFileFromPath({
+    required String title,
+    required String filePath,
+    void Function(double progress)? onProgress,
+  }) async {
+    if (kIsWeb) {
+      throw UnsupportedError(
+          'addAudioFileFromPath is not supported on Web. Use addAudioFile with bytes instead.');
+    }
+
+    final f = File(filePath);
+    if (!await f.exists()) {
+      throw Exception('파일이 존재하지 않습니다: $filePath');
+    }
+
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final name = p.basename(filePath);
+    final safeName = name.replaceAll(RegExp(r'[^\w\.\-]'), '_');
+    final storagePath = 'audios/${timestamp}_$safeName';
+
+    final ext = _extOf(name);
+    final contentType = _guessAudioContentType(ext);
+
+    final ref = _storage.ref(storagePath);
+    final meta = fb_storage.SettableMetadata(contentType: contentType);
+
+    final task = ref.putFile(f, meta);
+
+    if (onProgress != null) {
+      task.snapshotEvents.listen((s) {
+        final total = s.totalBytes;
+        if (total > 0) onProgress(s.bytesTransferred / total);
+      });
+    }
+
+    final snap = await task.whenComplete(() {});
+    final url = await snap.ref.getDownloadURL();
+
+    await _db.collection('audios').add({
+      'title': title,
+      'url': url,
+      'ext': ext,
+      'size': await f.length(),
+      'storagePath': storagePath,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<List<Audio>> fetchAllAudios() async {
     final snap = await _db
         .collection('audios')
@@ -170,7 +246,6 @@ class FirestoreService {
     return snap.docs.map((doc) => Audio.fromFirestore(doc)).toList();
   }
 
-  /// * 제목(q)으로 검색하여 AudioModel 리스트 반환
   Future<List<Audio>> searchAudios(String q) async {
     final snap = await _db
         .collection('audios')
@@ -181,40 +256,98 @@ class FirestoreService {
     return snap.docs.map((doc) => Audio.fromFirestore(doc)).toList();
   }
 
-  /// * 중복 제목 검사
-  Future<bool> audioExists(String title) async {
-    final snap =
-        await _db.collection('audios').where('title', isEqualTo: title).get();
-    return snap.docs.isNotEmpty;
-  }
-
-  /// 오디오 삭제 메서드
+  /// Firestore 문서 + Storage 원본 동시 삭제
   Future<void> deleteAudioFile(String audioId) async {
-    await _db.collection('audios').doc(audioId).delete();
+    final docRef = _db.collection('audios').doc(audioId);
+    final doc = await docRef.get();
+
+    if (doc.exists) {
+      final data = doc.data() as Map<String, dynamic>;
+      final storagePath = data['storagePath'] as String?;
+      final url = data['url'] as String?;
+
+      try {
+        if (storagePath != null && storagePath.isNotEmpty) {
+          await _storage.ref(storagePath).delete();
+        } else if (url != null && url.isNotEmpty) {
+          await _storage.refFromURL(url).delete();
+        }
+      } catch (_) {
+        // Storage 삭제 실패해도 Firestore 문서는 지움
+      }
+    }
+
+    await docRef.delete();
   }
 
-  // ── 영상 ──
-  // 동영상 업로드 메서드
-  Future<void> addVideo(Map<String, dynamic> data, PlatformFile file) async {
-    // 1) 동영상 파일 경로 생성
-    final fileName = file.name;
+  // ──────────────────────────────── Videos ─────────────────────────────────
+
+  /// 경로/bytes 모두 대응 + 진행률 콜백 + storagePath 저장 (Web/모바일 겸용)
+  Future<void> addVideo({
+    required Map<String, dynamic> data, // 최소: {'title': ...}
+    required PlatformFile file,
+    void Function(double progress)? onProgress,
+  }) async {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final path = 'videos/${timestamp}_$fileName';
+    final safeName = file.name.replaceAll(RegExp(r'[^\w\.\-]'), '_');
+    final storagePath = 'videos/${timestamp}_$safeName';
 
-    // 2) 파일 업로드
-    final ref = _storage.ref().child(path);
-    final uploadTask = ref.putData(file.bytes!);
+    final ext = (file.extension ?? '').toLowerCase();
+    final contentType = _guessVideoContentType(ext);
 
-    // 3) 업로드 완료 대기
-    final snap = await uploadTask.whenComplete(() {});
+    final ref = _storage.ref(storagePath);
+    final meta = fb_storage.SettableMetadata(contentType: contentType);
 
-    // 4) 다운로드 URL 가져오기
+    fb_storage.UploadTask task;
+
+    if (kIsWeb) {
+      if (file.bytes == null) {
+        throw Exception('웹에서는 withData:true가 필요합니다 (bytes가 null).');
+      }
+      task = ref.putData(file.bytes!, meta);
+    } else {
+      final path = file.path;
+      if (path != null && path.isNotEmpty) {
+        try {
+          final f = File(path);
+          if (await f.exists()) {
+            task = ref.putFile(f, meta);
+          } else if (file.bytes != null) {
+            task = ref.putData(file.bytes!, meta);
+          } else {
+            final bytes = await File(path).readAsBytes();
+            task = ref.putData(bytes, meta);
+          }
+        } catch (_) {
+          if (file.bytes == null) {
+            throw Exception('동영상 파일을 열 수 없습니다. bytes가 필요합니다.');
+          }
+          task = ref.putData(file.bytes!, meta);
+        }
+      } else {
+        if (file.bytes == null) {
+          throw Exception('동영상 파일 데이터가 없습니다. (bytes/path 모두 null)');
+        }
+        task = ref.putData(file.bytes!, meta);
+      }
+    }
+
+    if (onProgress != null) {
+      task.snapshotEvents.listen((s) {
+        final t = s.totalBytes;
+        if (t > 0) onProgress(s.bytesTransferred / t);
+      });
+    }
+
+    final snap = await task.whenComplete(() {});
     final url = await snap.ref.getDownloadURL();
 
-    // 5) Firestore에 메타데이터 저장
     await _db.collection('videos').add({
       'title': data['title'],
       'url': url,
+      'ext': ext,
+      'size': file.size,
+      'storagePath': storagePath,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
@@ -234,18 +367,15 @@ class FirestoreService {
     return snap.docs.isNotEmpty;
   }
 
-  // 동영상 목록을 가져오는 메서드
   Future<List<Map<String, dynamic>>> fetchVideos() async {
     try {
-      // 'videos' 컬렉션에서 모든 동영상 문서 가져오기
       final snapshot = await _db.collection('videos').get();
-
-      // 동영상 데이터를 List<Map<String, dynamic>> 형태로 변환하여 반환
       return snapshot.docs.map((doc) {
+        final data = doc.data();
         return {
-          'id': doc.id, // 동영상 ID
-          'title': doc['title'], // 동영상 제목
-          'url': doc['url'], // 동영상 URL
+          'id': doc.id,
+          'title': data['title'],
+          'url': data['url'],
         };
       }).toList();
     } catch (e) {
@@ -253,23 +383,32 @@ class FirestoreService {
     }
   }
 
-  // 동영상 삭제
+  /// Firestore 문서 + Storage 원본 동시 삭제
   Future<void> deleteVideo(String videoId, String videoUrl) async {
     try {
-      // Firestore에서 동영상 메타데이터 삭제
+      final docRef = _db.collection('videos').doc(videoId);
+      final doc = await docRef.get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        final storagePath = data['storagePath'] as String?;
+        try {
+          if (storagePath != null && storagePath.isNotEmpty) {
+            await _storage.ref(storagePath).delete();
+          } else if (videoUrl.isNotEmpty) {
+            await _storage.refFromURL(videoUrl).delete();
+          }
+        } catch (_) {
+          // Storage 삭제 실패해도 Firestore 문서는 지움
+        }
+      }
       await _db.collection('videos').doc(videoId).delete();
-
-      // Firebase Storage에서 동영상 파일 삭제
-      final ref = _storage.refFromURL(videoUrl); // 동영상 URL을 사용해 참조 가져오기
-      await ref.delete(); // Firebase Storage에서 동영상 파일 삭제
-
-      print('동영상 삭제 완료');
     } catch (e) {
       throw Exception('동영상 삭제 실패: $e');
     }
   }
 
-  // ── 과제 추가 ──
+  // ───────────────────────────────── Tasks ─────────────────────────────────
+
   Future<void> addTask(String title, DateTime dueDate) {
     return _db.collection('tasks').add({
       'title': title,
@@ -279,13 +418,47 @@ class FirestoreService {
     });
   }
 
-  /// 과제(tasks) 목록을 Task 모델 리스트로 스트림 반환
   Stream<List<Task>> taskList() {
-    return _db
-        .collection('tasks')
-        .orderBy('dueDate') // 마감일 순 정렬(Optional)
-        .snapshots()
-        .map(
-            (snap) => snap.docs.map((doc) => Task.fromFirestore(doc)).toList());
+    return _db.collection('tasks').orderBy('dueDate').snapshots().map(
+        (snap) => snap.docs.map((doc) => Task.fromFirestore(doc)).toList());
+  }
+
+  // ──────────────────────────────── Helpers ────────────────────────────────
+
+  String _extOf(String name) {
+    final i = name.lastIndexOf('.');
+    return i >= 0 ? name.substring(i + 1).toLowerCase() : '';
+  }
+
+  String _guessAudioContentType(String ext) {
+    switch (ext) {
+      case 'mp3':
+        return 'audio/mpeg';
+      case 'wav':
+        return 'audio/wav';
+      case 'aac':
+        return 'audio/aac';
+      case 'm4a':
+        return 'audio/mp4'; // m4a는 통상 audio/mp4
+      case 'mp4':
+        return 'video/mp4'; // 혹시 오디오 확장자 배열을 잘못 넘겼을 경우 대비
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  String _guessVideoContentType(String ext) {
+    switch (ext) {
+      case 'mp4':
+        return 'video/mp4';
+      case 'mov':
+        return 'video/quicktime';
+      case 'avi':
+        return 'video/x-msvideo';
+      case 'webm':
+        return 'video/webm';
+      default:
+        return 'application/octet-stream';
+    }
   }
 }

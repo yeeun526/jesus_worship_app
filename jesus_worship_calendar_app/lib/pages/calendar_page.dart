@@ -33,6 +33,7 @@ class _CalendarPageState extends State<CalendarPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('jesus worship'),
+        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -151,20 +152,20 @@ class _CalendarPageState extends State<CalendarPage> {
                           children: [
                             _NavBtn(
                                 text: '출석',
-                                onTap: () => Navigator.pushNamed(
+                                onTap: () => Navigator.pushReplacementNamed(
                                     context, '/attendance')),
                             _NavBtn(
                                 text: '음원',
-                                onTap: () =>
-                                    Navigator.pushNamed(context, '/audio')),
+                                onTap: () => Navigator.pushReplacementNamed(
+                                    context, '/audio')),
                             _NavBtn(
                                 text: '영상',
-                                onTap: () =>
-                                    Navigator.pushNamed(context, '/video')),
+                                onTap: () => Navigator.pushReplacementNamed(
+                                    context, '/video')),
                             _NavBtn(
-                                text: '과제',
-                                onTap: () =>
-                                    Navigator.pushNamed(context, '/task')),
+                                text: '출석부',
+                                onTap: () => Navigator.pushReplacementNamed(
+                                    context, '/attendance_check')),
                           ],
                         ),
                       ),
