@@ -8,8 +8,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 
 import '../models/audio.dart';
-import '../services/firestore_service.dart'; // FirestoreService 임포트
-import '../widgets/permission_widget.dart'; // 권한 확인 위젯
+import '../services/firestore_service.dart';
+import '../widgets/permission_widget.dart';
 
 class AudioPage extends StatefulWidget {
   const AudioPage({Key? key}) : super(key: key);
@@ -25,13 +25,17 @@ class _AudioPageState extends State<AudioPage> {
   bool _isAdmin = false;
   bool _isPlaying = false;
   bool _isPaused = false;
-  bool _isUploading = false; // 업로드 진행 중 중앙 로딩 오버레이용
+  bool _isUploading = false;
 
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
 
-  List<Audio> _audios = []; // 전체 음원 목록
-  List<Audio> _filteredAudios = []; // 필터된 음원 목록
+  // 배속 관련
+  final List<double> _rates = const [0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+  double _currentRate = 1.0;
+
+  List<Audio> _audios = [];
+  List<Audio> _filteredAudios = [];
   final _searchCtrl = TextEditingController();
 
   @override
@@ -120,7 +124,7 @@ class _AudioPageState extends State<AudioPage> {
                     final result = await FilePicker.platform.pickFiles(
                       type: FileType.custom,
                       allowedExtensions: ['mp3', 'wav', 'mp4'],
-                      withData: kIsWeb ? true : false,
+                      withData: kIsWeb ? true : false, // 웹은 bytes 필수
                     );
                     if (result != null && result.files.isNotEmpty) {
                       setLocal(() => pickedFile = result.files.single);
@@ -158,7 +162,7 @@ class _AudioPageState extends State<AudioPage> {
     if (ok != true) return;
 
     try {
-      setState(() => _isUploading = true); // 업로드 시작: 중앙 로딩 표시
+      setState(() => _isUploading = true);
       await _audioService.addAudioFile(
         title: titleCtrl.text.trim(),
         file: pickedFile!,
@@ -172,7 +176,7 @@ class _AudioPageState extends State<AudioPage> {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('업로드 실패: $e')));
     } finally {
-      if (mounted) setState(() => _isUploading = false); // 업로드 끝: 로딩 제거
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -191,6 +195,8 @@ class _AudioPageState extends State<AudioPage> {
   Future<void> _playNewAudio(String url) async {
     await _player.stop();
     await _player.setUrl(url);
+    // 현재 선택된 배속 유지
+    await _player.setSpeed(_currentRate);
     await _player.play();
   }
 
@@ -209,10 +215,25 @@ class _AudioPageState extends State<AudioPage> {
     }
   }
 
+  Future<void> _applySpeed(double rate) async {
+    setState(() => _currentRate = rate);
+    try {
+      await _player.setSpeed(rate);
+    } catch (_) {
+      // just_audio가 아직 준비 전이면 무시
+    }
+  }
+
+  String _rateLabel(double r) {
+    // 1.0 → 1x, 0.5 → 0.5x
+    final s = r.toStringAsFixed(r == 1.0 ? 0 : 1);
+    return '${s}x';
+    // 필요하면 0.6~0.9도 소수 한 자리로 고정됨
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      // 시스템 뒤로가기/스와이프로 나가기 직전에 재생 중지
       onWillPop: () async {
         await _player.stop();
         return true;
@@ -225,9 +246,9 @@ class _AudioPageState extends State<AudioPage> {
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () async {
-                  await _player.stop(); // 먼저 멈추기
+                  await _player.stop();
                   if (!mounted) return;
-                  Navigator.pushReplacementNamed(context, '/calendar'); // 교체 이동
+                  Navigator.pushReplacementNamed(context, '/calendar');
                 },
               ),
             ),
@@ -249,14 +270,13 @@ class _AudioPageState extends State<AudioPage> {
                 ),
                 Expanded(
                   child: ListView.builder(
-                    padding: const EdgeInsets.only(
-                        bottom: 120), // 오디오 바와 겹치지 않도록 하단 여백
+                    padding: const EdgeInsets.only(bottom: 120),
                     itemCount: _filteredAudios.length,
                     itemBuilder: (ctx, idx) {
                       final audio = _filteredAudios[idx];
                       return ListTile(
                         title: Text(audio.title),
-                        trailing: audio.url.isEmpty // URL이 비어있으면 업로드 중
+                        trailing: audio.url.isEmpty
                             ? const SizedBox(
                                 width: 24,
                                 height: 24,
@@ -294,6 +314,31 @@ class _AudioPageState extends State<AudioPage> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              // ─── 배속 선택 버튼들 ───
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  children: _rates.map((r) {
+                                    final selected = (r == _currentRate);
+                                    return ChoiceChip(
+                                      label: Text(
+                                        _rateLabel(r),
+                                        style: TextStyle(
+                                          fontWeight:
+                                              selected ? FontWeight.w700 : null,
+                                        ),
+                                      ),
+                                      selected: selected,
+                                      onSelected: (_) => _applySpeed(r),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+
+                              // ─── 시크/타임라인 ───
                               Slider(
                                 value: _position.inSeconds
                                     .clamp(0, _duration.inSeconds)
@@ -317,8 +362,7 @@ class _AudioPageState extends State<AudioPage> {
                                     onPressed: _togglePlayPause,
                                   ),
                                   Text(
-                                    '${_mmss(_position)} / ${_mmss(_duration)}',
-                                  ),
+                                      '${_mmss(_position)} / ${_mmss(_duration)}'),
                                 ],
                               ),
                             ],
@@ -334,9 +378,7 @@ class _AudioPageState extends State<AudioPage> {
           if (_isUploading)
             Container(
               color: Colors.black54,
-              child: const Center(
-                child: CircularProgressIndicator(),
-              ),
+              child: const Center(child: CircularProgressIndicator()),
             ),
         ],
       ),

@@ -16,6 +16,10 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   late VideoPlayerController _controller;
   bool _isPlaying = false;
 
+  // 배속 관련
+  final List<double> _rates = const [0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+  double _currentRate = 1.0;
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +50,17 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     });
   }
 
+  // 배속 적용
+  Future<void> _applySpeed(double rate) async {
+    setState(() => _currentRate = rate);
+    await _controller.setPlaybackSpeed(rate);
+  }
+
+  String _rateLabel(double r) {
+    final s = r.toStringAsFixed(r == 1.0 ? 0 : 1);
+    return '${s}x';
+  }
+
   String _formatDuration(Duration position) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final minutes = twoDigits(position.inMinutes.remainder(60));
@@ -72,17 +87,38 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                     aspectRatio: _controller.value.aspectRatio,
                     child: VideoPlayer(_controller),
                   ),
-                  // 실행바 추가
+                  // 실행바
                   VideoProgressIndicator(
                     _controller,
-                    allowScrubbing: true, // 드래그해서 이동 가능
-                    colors: VideoProgressColors(
+                    allowScrubbing: true,
+                    colors: const VideoProgressColors(
                       playedColor: Colors.blue,
                       bufferedColor: Colors.grey,
                       backgroundColor: Colors.black26,
                     ),
                   ),
                   const SizedBox(height: 10),
+                  // 배속 버튼
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    alignment: WrapAlignment.center,
+                    children: _rates.map((r) {
+                      final selected = (r == _currentRate);
+                      return ChoiceChip(
+                        label: Text(
+                          _rateLabel(r),
+                          style: TextStyle(
+                            fontWeight: selected ? FontWeight.bold : null,
+                          ),
+                        ),
+                        selected: selected,
+                        onSelected: (_) => _applySpeed(r),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 10),
+                  // 재생/일시정지 버튼
                   IconButton(
                     icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
                     onPressed: _togglePlayPause,
