@@ -10,7 +10,7 @@ plugins {
 
 android {
     namespace = "com.example.jesus_worship_calendar_app"
-    compileSdk = 35
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -24,20 +24,29 @@ android {
 
     defaultConfig {
         applicationId = "com.example.jesus_worship_calendar_app"
-        minSdk = 23
-        targetSdk = 35
+        minSdkVersion = flutter.minSdkVersion
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.debug
+            // 난독화 활성화 (shrinkResources는 리소스 최적화)
+            minifyEnabled true
+            shrinkResources true
+
+            // ** 새로 만든 proguard-rules.pro 파일을 지정합니다. **
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
 
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+        kotlinOptions {
+            freeCompilerArgs += ['-Xlint:deprecation'] 
+        }
+    }
 }
 
 flutter {

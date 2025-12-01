@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../providers/user_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // 📌 1. shared_preferences 임포트 추가
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -23,9 +24,14 @@ class _LoginPageState extends State<LoginPage> {
         email: emailController.text.trim(),
         password: passwordController.text,
       );
-      // 2) UserProvider에 uid/role 로드
+      // 2. 로그인 성공 시 sharedPrefences에 상태 저장
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
+
+      // 3. UserProvider에 uid/role 로드
       await context.read<UserProvider>().loadCurrentUser();
-      // 3) 캘린더 페이지로 이동
+
+      // 4. 캘린더 페이지로 이동
       Navigator.of(context).pushReplacementNamed('/calendar');
     } catch (e) {
       // 로그인 실패 시 메시지 표시

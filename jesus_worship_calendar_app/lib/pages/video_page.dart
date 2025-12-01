@@ -298,15 +298,13 @@ class _VideoPageState extends State<VideoPage> {
                                       style: const TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w700,
-                                        decoration:
-                                            TextDecoration.none, // 🔒 밑줄 방지
+                                        decoration: TextDecoration.none,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              // 필요하면 얇은 진행 바도 추가 가능
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(6),
                                 child: LinearProgressIndicator(

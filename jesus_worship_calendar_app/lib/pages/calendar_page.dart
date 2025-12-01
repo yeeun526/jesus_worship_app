@@ -151,20 +151,16 @@ class _CalendarPageState extends State<CalendarPage> {
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
                             _NavBtn(
-                                text: '출석',
-                                onTap: () => Navigator.pushReplacementNamed(
-                                    context, '/attendance')),
-                            _NavBtn(
                                 text: '음원',
-                                onTap: () => Navigator.pushReplacementNamed(
-                                    context, '/audio')),
+                                onTap: () =>
+                                    Navigator.pushNamed(context, '/audio')),
                             _NavBtn(
                                 text: '영상',
-                                onTap: () => Navigator.pushReplacementNamed(
-                                    context, '/video')),
+                                onTap: () =>
+                                    Navigator.pushNamed(context, '/video')),
                             _NavBtn(
                                 text: '출석부',
-                                onTap: () => Navigator.pushReplacementNamed(
+                                onTap: () => Navigator.pushNamed(
                                     context, '/attendance_check')),
                           ],
                         ),

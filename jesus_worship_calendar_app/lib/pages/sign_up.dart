@@ -37,7 +37,7 @@ class _SignUpPageState extends State<SignUpPage> {
         uid: uid,
         email: email,
         role: _role,
-        name: name, // ← 추가
+        name: name,
       );
 
       // 3) 성공 알림 & 1초 뒤 로그인 페이지로

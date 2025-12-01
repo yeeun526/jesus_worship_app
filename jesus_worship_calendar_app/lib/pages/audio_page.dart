@@ -1,5 +1,3 @@
-// lib/pages/audio_page.dart
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
@@ -9,7 +7,6 @@ import 'package:file_picker/file_picker.dart';
 
 import '../models/audio.dart';
 import '../services/firestore_service.dart';
-import '../widgets/permission_widget.dart';
 
 class AudioPage extends StatefulWidget {
   const AudioPage({Key? key}) : super(key: key);
