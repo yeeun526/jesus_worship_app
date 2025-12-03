@@ -119,8 +119,9 @@ class _AudioPageState extends State<AudioPage> {
                   label: const Text('파일 선택'),
                   onPressed: () async {
                     final result = await FilePicker.platform.pickFiles(
-                      type: FileType.custom,
-                      allowedExtensions: ['mp3', 'wav', 'mp4'],
+                      type: FileType.audio,
+                      // type: FileType.custom,
+                      // allowedExtensions: ['mp3', 'wav', 'mp4'],
                       withData: kIsWeb ? true : false, // 웹은 bytes 필수
                     );
                     if (result != null && result.files.isNotEmpty) {
