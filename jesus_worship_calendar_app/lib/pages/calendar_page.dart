@@ -85,6 +85,7 @@ class _CalendarPageState extends State<CalendarPage> {
                             _focusedDay = focused;
                           });
                         },
+
                         headerStyle:
                             const HeaderStyle(formatButtonVisible: false),
                         // 패키지 버전에 따라 없을 수도 있음(없으면 지워도 동작)
@@ -176,7 +177,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
       // ── 일정 추가 버튼 (관리자만) ──
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 40.0, right: 40.0),
+        padding: const EdgeInsets.only(bottom: 70.0, right: 10.0),
         child: PermissionWidget(
           requiredRole: 'admin',
           child: FloatingActionButton(
@@ -253,7 +254,16 @@ class _CalendarPageState extends State<CalendarPage> {
               child: const Text('취소'),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
+              onPressed: () {
+                if (titleCtrl.text.trim().isEmpty) {
+                  // 📌 베이시스: 제목 미입력 시 피드백 제공 (스낵바)
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(content: Text('일정 제목을 입력해주세요.')),
+                  );
+                  return; // 창을 닫지 않고 함수 종료
+                }
+                Navigator.pop(ctx, true); // 제목이 있을 때만 true 반환하며 닫기
+              },
               child: const Text('저장'),
             ),
           ],

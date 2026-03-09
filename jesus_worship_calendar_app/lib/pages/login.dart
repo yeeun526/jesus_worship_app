@@ -33,10 +33,27 @@ class _LoginPageState extends State<LoginPage> {
 
       // 4. 캘린더 페이지로 이동
       Navigator.of(context).pushReplacementNamed('/calendar');
-    } catch (e) {
-      // 로그인 실패 시 메시지 표시
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = '로그인에 실패했습니다.';
+
+      if (e.code == 'user-not-found' ||
+          e.code == 'wrong-password' ||
+          e.code == 'invalid-credential') {
+        errorMessage = '이메일 혹은 비밀번호가 틀렸습니다.';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = '유효하지 않은 이메일 형식입니다.';
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('로그인 실패: $e')),
+        SnackBar(content: Text(errorMessage)),
+      );
+    } catch (e) {
+      // 개발 시점에 디버그 콘솔에서 확인하기 위해 출력 (사용자에겐 안 보임)
+      debugPrint('Login Error Detail: $e');
+
+      // 사용자에게는 정제된 메시지 노출
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('일시적인 오류가 발생했습니다. 다시 시도해주세요.')),
       );
     } finally {
       setState(() => _loading = false);

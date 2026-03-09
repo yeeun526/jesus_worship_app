@@ -34,6 +34,7 @@ class _AudioPageState extends State<AudioPage> {
   List<Audio> _audios = [];
   List<Audio> _filteredAudios = [];
   final _searchCtrl = TextEditingController();
+  String? _loadingAudioId;
 
   @override
   void initState() {
@@ -190,12 +191,21 @@ class _AudioPageState extends State<AudioPage> {
     await _player.seek(position);
   }
 
-  Future<void> _playNewAudio(String url) async {
-    await _player.stop();
-    await _player.setUrl(url);
-    // 현재 선택된 배속 유지
-    await _player.setSpeed(_currentRate);
-    await _player.play();
+  Future<void> _playNewAudio(Audio url) async {
+    setState(() => _loadingAudioId = url.id); // 📌 로딩 시작!
+
+    try {
+      await _player.stop();
+      await _player.setUrl(url.url);
+      await _player.setSpeed(_currentRate);
+      await _player.play();
+    } catch (e) {
+      debugPrint("Playback error: $e");
+    } finally {
+      if (mounted) {
+        setState(() => _loadingAudioId = null); // 📌 로딩 끝!
+      }
+    }
   }
 
   Future<void> _deleteAudio(String audioId) async {
@@ -267,32 +277,52 @@ class _AudioPageState extends State<AudioPage> {
                   ),
                 ),
                 Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 120),
-                    itemCount: _filteredAudios.length,
-                    itemBuilder: (ctx, idx) {
-                      final audio = _filteredAudios[idx];
-                      return ListTile(
-                        title: Text(audio.title),
-                        trailing: audio.url.isEmpty
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : _isAdmin
-                                ? IconButton(
-                                    icon: const Icon(Icons.delete),
-                                    onPressed: () => _deleteAudio(audio.id),
-                                  )
-                                : null,
-                        onTap: audio.url.isNotEmpty
-                            ? () => _playNewAudio(audio.url)
-                            : null,
-                      );
-                    },
-                  ),
+                  child: _filteredAudios.isEmpty
+                      ? _searchCtrl.text.isEmpty
+                          ? const Center(
+                              child: Text('등록된 음원이 없습니다.')) // 아예 데이터가 없을 때
+                          : const Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.search_off,
+                                      size: 64, color: Colors.grey),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    '검색 결과가 없습니다.',
+                                    style: TextStyle(
+                                        fontSize: 16, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            )
+                      : ListView.builder(
+                          padding: const EdgeInsets.only(bottom: 120),
+                          itemCount: _filteredAudios.length,
+                          itemBuilder: (ctx, idx) {
+                            final audio = _filteredAudios[idx];
+                            return ListTile(
+                              title: Text(audio.title),
+                              trailing: audio.url.isEmpty
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    )
+                                  : _isAdmin
+                                      ? IconButton(
+                                          icon: const Icon(Icons.delete),
+                                          onPressed: () =>
+                                              _deleteAudio(audio.id),
+                                        )
+                                      : null,
+                              onTap: audio.url.isNotEmpty
+                                  ? () => _playNewAudio(audio)
+                                  : null,
+                            );
+                          },
+                        ),
                 ),
               ],
             ),
@@ -342,12 +372,13 @@ class _AudioPageState extends State<AudioPage> {
                                     .clamp(0, _duration.inSeconds)
                                     .toDouble(),
                                 min: 0,
-                                max: (_duration.inSeconds == 0
-                                        ? 1
-                                        : _duration.inSeconds)
-                                    .toDouble(),
-                                onChanged: (v) =>
-                                    _seekTo(Duration(seconds: v.toInt())),
+                                max: _duration.inSeconds > 0
+                                    ? _duration.inSeconds.toDouble()
+                                    : 0.0,
+                                onChanged: _duration.inSeconds > 0
+                                    ? (v) =>
+                                        _seekTo(Duration(seconds: v.toInt()))
+                                    : null,
                               ),
                               Row(
                                 mainAxisAlignment:

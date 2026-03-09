@@ -26,6 +26,20 @@ class _SignUpPageState extends State<SignUpPage> {
       return;
     }
 
+    // [결함 1 수정] 이메일 빈값 체크 추가
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이메일을 입력해주세요')),
+      );
+      return;
+    }
+// [결함 2 수정] 비밀번호 길이 체크 추가 (서버 요청 전 차단)
+    if (pw.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('비밀번호는 최소 6자 이상이어야 합니다')),
+      );
+      return;
+    }
     try {
       // 1) Firebase Auth 회원가입
       final cred = await FirebaseAuth.instance
@@ -85,7 +99,10 @@ class _SignUpPageState extends State<SignUpPage> {
             ),
             TextField(
               controller: _passwordCtrl,
-              decoration: const InputDecoration(labelText: '비밀번호'),
+              decoration: const InputDecoration(
+                labelText: '비밀번호',
+                helperText: '최소 6자 이상의 비밀번호를 입력하세요',
+              ),
               obscureText: true,
             ),
             const SizedBox(height: 12),
