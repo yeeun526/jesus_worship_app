@@ -118,7 +118,7 @@ class _CalendarPageState extends State<CalendarPage> {
                       child: _selectedDay == null
                           ? const Center(child: Text('날짜를 선택하세요'))
                           : ListView.builder(
-                              padding: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.only(bottom: 80),
                               itemCount: _getEventsForDay(_selectedDay!).length,
                               itemBuilder: (ctx, i) {
                                 final e = _getEventsForDay(_selectedDay!)[i];
@@ -130,10 +130,21 @@ class _CalendarPageState extends State<CalendarPage> {
                                   ),
                                   trailing: PermissionWidget(
                                     requiredRole: 'admin',
-                                    child: IconButton(
-                                      icon: const Icon(Icons.delete,
-                                          color: Colors.redAccent),
-                                      onPressed: () => _confirmDelete(e),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.edit,
+                                              color: Colors.blueAccent),
+                                          onPressed: () => _showEditDialog(
+                                              e), // 📌 수정 다이얼로그 호출
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete,
+                                              color: Colors.redAccent),
+                                          onPressed: () => _confirmDelete(e),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 );
@@ -310,6 +321,103 @@ class _CalendarPageState extends State<CalendarPage> {
     );
     if (ok == true) {
       await _fs.deleteEvent(e.id);
+    }
+  }
+
+  Future<void> _showEditDialog(Event e) async {
+    DateTime selectedDate = e.date;
+    TimeOfDay selectedTime = TimeOfDay.fromDateTime(e.date);
+    final titleCtrl = TextEditingController(text: e.title); // 📌 기존 제목 채우기
+
+    final shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('일정 수정'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleCtrl,
+                decoration: const InputDecoration(labelText: '일정 제목'),
+              ),
+              const SizedBox(height: 12),
+              // 날짜 선택 Row (기존 _showAddDialog와 로직 동일)
+              Row(
+                children: [
+                  Text('날짜: ${DateFormat('yyyy-MM-dd').format(selectedDate)}'),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () async {
+                      final d = await showDatePicker(
+                        context: ctx,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                      );
+                      if (d != null) setState(() => selectedDate = d);
+                    },
+                    child: const Text('변경'),
+                  ),
+                ],
+              ),
+              // 시간 선택 Row
+              Row(
+                children: [
+                  Text('시간: ${selectedTime.format(ctx)}'),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () async {
+                      final t = await showTimePicker(
+                        context: ctx,
+                        initialTime: selectedTime,
+                      );
+                      if (t != null) setState(() => selectedTime = t);
+                    },
+                    child: const Text('변경'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('취소')),
+            ElevatedButton(
+              onPressed: () {
+                if (titleCtrl.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(content: Text('제목을 입력해주세요.')));
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              child: const Text('수정 저장'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (shouldSave == true) {
+      final updatedDt = DateTime(
+        selectedDate.year,
+        selectedDate.month,
+        selectedDate.day,
+        selectedTime.hour,
+        selectedTime.minute,
+      );
+
+      // 📌 기존 e.id와 e.createdBy를 유지하는 것이 포인트!
+      final updatedEvent = Event(
+        id: e.id,
+        title: titleCtrl.text.trim(),
+        date: updatedDt,
+        createdBy: e.createdBy,
+      );
+
+      await _fs.updateEvent(updatedEvent);
     }
   }
 }

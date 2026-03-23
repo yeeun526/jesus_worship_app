@@ -99,6 +99,16 @@ class _AudioPageState extends State<AudioPage> {
   Future<void> _promptUpload() async {
     final titleCtrl = TextEditingController();
     PlatformFile? pickedFile;
+    bool isValidFile = false;
+
+    // 지원하는 오디오 확장자 목록
+    final allowedExtensions = ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'];
+
+    // 확장자 검증 함수
+    bool validateAudioFile(PlatformFile file) {
+      final extension = file.extension?.toLowerCase();
+      return extension != null && allowedExtensions.contains(extension);
+    }
 
     final ok = await showDialog<bool>(
       context: context,
@@ -106,40 +116,146 @@ class _AudioPageState extends State<AudioPage> {
         return StatefulBuilder(builder: (ctx, setLocal) {
           return AlertDialog(
             title: const Text('오디오 업로드'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleCtrl,
-                  decoration: const InputDecoration(labelText: '제목'),
-                  onChanged: (_) => setLocal(() {}),
-                ),
-                const SizedBox(height: 12),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.attach_file),
-                  label: const Text('파일 선택'),
-                  onPressed: () async {
-                    final result = await FilePicker.platform.pickFiles(
-                      type: FileType.audio,
-                      // type: FileType.custom,
-                      // allowedExtensions: ['mp3', 'wav', 'mp4'],
-                      withData: kIsWeb ? true : false, // 웹은 bytes 필수
-                    );
-                    if (result != null && result.files.isNotEmpty) {
-                      setLocal(() => pickedFile = result.files.single);
-                    }
-                  },
-                ),
-                if (pickedFile != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      pickedFile!.name,
-                      style:
-                          const TextStyle(fontSize: 12, color: Colors.black54),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleCtrl,
+                    decoration: const InputDecoration(
+                      labelText: '제목',
+                      hintText: '음원 제목을 입력하세요',
+                    ),
+                    onChanged: (_) => setLocal(() {}),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // 지원 형식 안내
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline,
+                            size: 16, color: Colors.blue.shade700),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '지원 형식: MP3, WAV, M4A, AAC, OGG, FLAC',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-              ],
+                  const SizedBox(height: 12),
+
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.attach_file),
+                    label: const Text('파일 선택'),
+                    onPressed: () async {
+                      final result = await FilePicker.platform.pickFiles(
+                        type: FileType.custom,
+                        allowedExtensions: allowedExtensions,
+                        withData: kIsWeb ? true : false,
+                      );
+
+                      if (result != null && result.files.isNotEmpty) {
+                        final file = result.files.single;
+                        final isValid = validateAudioFile(file);
+
+                        if (isValid) {
+                          setLocal(() {
+                            pickedFile = file;
+                            isValidFile = true;
+                          });
+                        } else {
+                          // 유효하지 않은 파일 선택 시 경고
+                          setLocal(() {
+                            pickedFile = null;
+                            isValidFile = false;
+                          });
+
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                  '지원하지 않는 파일 형식입니다.\n'
+                                  '(MP3, WAV, M4A, AAC, OGG, FLAC만 가능)',
+                                ),
+                                backgroundColor: Colors.red.shade600,
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          }
+                        }
+                      }
+                    },
+                  ),
+
+                  if (pickedFile != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isValidFile
+                              ? Colors.green.shade50
+                              : Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isValidFile
+                                ? Colors.green.shade300
+                                : Colors.red.shade300,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isValidFile
+                                  ? Icons.check_circle_outline
+                                  : Icons.error_outline,
+                              color: isValidFile
+                                  ? Colors.green.shade700
+                                  : Colors.red.shade700,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    pickedFile!.name,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  if (pickedFile!.size > 0)
+                                    Text(
+                                      _formatFileSize(pickedFile!.size),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -147,10 +263,11 @@ class _AudioPageState extends State<AudioPage> {
                 child: const Text('취소'),
               ),
               TextButton(
-                onPressed:
-                    (titleCtrl.text.trim().isNotEmpty && pickedFile != null)
-                        ? () => Navigator.pop(ctx, true)
-                        : null,
+                onPressed: (titleCtrl.text.trim().isNotEmpty &&
+                        pickedFile != null &&
+                        isValidFile)
+                    ? () => Navigator.pop(ctx, true)
+                    : null,
                 child: const Text('확인'),
               ),
             ],
@@ -158,7 +275,21 @@ class _AudioPageState extends State<AudioPage> {
         });
       },
     );
+
     if (ok != true) return;
+
+    // 업로드 전 최종 검증
+    if (pickedFile == null || !validateAudioFile(pickedFile!)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('유효한 오디오 파일을 선택해주세요.'),
+            backgroundColor: Colors.red.shade600,
+          ),
+        );
+      }
+      return;
+    }
 
     try {
       setState(() => _isUploading = true);
@@ -167,13 +298,21 @@ class _AudioPageState extends State<AudioPage> {
         file: pickedFile!,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('업로드 성공')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('업로드 성공'),
+          backgroundColor: Colors.green.shade600,
+        ),
+      );
       _loadAudios();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('업로드 실패: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('업로드 실패: $e'),
+          backgroundColor: Colors.red.shade600,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
@@ -191,19 +330,19 @@ class _AudioPageState extends State<AudioPage> {
     await _player.seek(position);
   }
 
-  Future<void> _playNewAudio(Audio url) async {
-    setState(() => _loadingAudioId = url.id); // 📌 로딩 시작!
+  Future<void> _playNewAudio(Audio audio) async {
+    setState(() => _loadingAudioId = audio.id);
 
     try {
       await _player.stop();
-      await _player.setUrl(url.url);
+      await _player.setUrl(audio.url);
       await _player.setSpeed(_currentRate);
       await _player.play();
     } catch (e) {
       debugPrint("Playback error: $e");
     } finally {
       if (mounted) {
-        setState(() => _loadingAudioId = null); // 📌 로딩 끝!
+        setState(() => _loadingAudioId = null);
       }
     }
   }
@@ -233,10 +372,14 @@ class _AudioPageState extends State<AudioPage> {
   }
 
   String _rateLabel(double r) {
-    // 1.0 → 1x, 0.5 → 0.5x
     final s = r.toStringAsFixed(r == 1.0 ? 0 : 1);
     return '${s}x';
-    // 필요하면 0.6~0.9도 소수 한 자리로 고정됨
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
   @override
@@ -279,8 +422,7 @@ class _AudioPageState extends State<AudioPage> {
                 Expanded(
                   child: _filteredAudios.isEmpty
                       ? _searchCtrl.text.isEmpty
-                          ? const Center(
-                              child: Text('등록된 음원이 없습니다.')) // 아예 데이터가 없을 때
+                          ? const Center(child: Text('등록된 음원이 없습니다.'))
                           : const Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,

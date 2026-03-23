@@ -48,6 +48,10 @@ class FirestoreService {
     return _db.collection('events').doc(id).delete();
   }
 
+  Future<void> updateEvent(Event event) async {
+    // 📌 모델의 id를 사용해서 해당 문서만 딱 골라 업데이트합니다.
+    await _db.collection('events').doc(event.id).update(event.toMap());
+  }
   // ───────────────────────────────── Users ─────────────────────────────────
 
   Future<void> createUserRecord({
