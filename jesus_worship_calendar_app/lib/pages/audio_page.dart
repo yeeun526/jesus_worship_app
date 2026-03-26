@@ -23,6 +23,7 @@ class _AudioPageState extends State<AudioPage> {
   bool _isPlaying = false;
   bool _isPaused = false;
   bool _isUploading = false;
+  bool _isDeleting = false;
 
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
@@ -57,6 +58,7 @@ class _AudioPageState extends State<AudioPage> {
         _isPlaying = playing;
         _isPaused =
             !playing && _position > Duration.zero && _position < _duration;
+        if (playing) _loadingAudioId = null;
       });
     });
   }
@@ -340,15 +342,34 @@ class _AudioPageState extends State<AudioPage> {
       await _player.play();
     } catch (e) {
       debugPrint("Playback error: $e");
-    } finally {
-      if (mounted) {
-        setState(() => _loadingAudioId = null);
-      }
+      if (mounted) setState(() => _loadingAudioId = null);
     }
   }
 
   Future<void> _deleteAudio(String audioId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('음원 삭제'),
+        content: const Text('음원을 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
     await _player.stop();
+    setState(() => _isDeleting = true);
     try {
       await _audioService.deleteAudioFile(audioId);
       if (!mounted) return;
@@ -359,6 +380,8 @@ class _AudioPageState extends State<AudioPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('음원 삭제 실패: $e')));
+    } finally {
+      if (mounted) setState(() => _isDeleting = false);
     }
   }
 
@@ -550,6 +573,44 @@ class _AudioPageState extends State<AudioPage> {
             Container(
               color: Colors.black54,
               child: const Center(child: CircularProgressIndicator()),
+            ),
+
+          // 삭제 중 중앙 로딩 오버레이
+          if (_isDeleting)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text(
+                      '삭제 중...',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // 음원 로딩 중 중앙 오버레이
+          if (_loadingAudioId != null)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text(
+                      '불러오는 중...',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
             ),
         ],
       ),
