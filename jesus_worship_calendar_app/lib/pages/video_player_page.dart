@@ -94,108 +94,112 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
                 ),
 
                 // 하단 고정 컨트롤러 영역
-                Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 4,
-                        offset: const Offset(0, -2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // 실행바
-                      VideoProgressIndicator(
-                        _controller,
-                        allowScrubbing: true,
-                        colors: const VideoProgressColors(
-                          playedColor: Colors.blue,
-                          bufferedColor: Colors.grey,
-                          backgroundColor: Colors.black26,
+                SafeArea(
+                  top: false,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, -2),
                         ),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                      ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 실행바
+                        VideoProgressIndicator(
+                          _controller,
+                          allowScrubbing: true,
+                          colors: const VideoProgressColors(
+                            playedColor: Colors.blue,
+                            bufferedColor: Colors.grey,
+                            backgroundColor: Colors.black26,
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                        ),
 
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // 시간 표시
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  _formatDuration(_controller.value.position),
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                                Text(
-                                  _formatDuration(_controller.value.duration),
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // 시간 표시
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    _formatDuration(_controller.value.position),
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                  Text(
+                                    _formatDuration(_controller.value.duration),
+                                    style: const TextStyle(fontSize: 14),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
 
-                            // 재생/일시정지 버튼과 배속 버튼
-                            Row(
-                              children: [
-                                // 재생/일시정지 버튼
-                                IconButton(
-                                  icon: Icon(_isPlaying
-                                      ? Icons.pause
-                                      : Icons.play_arrow),
-                                  onPressed: _togglePlayPause,
-                                  iconSize: 36,
-                                ),
-                                const SizedBox(width: 8),
+                              // 재생/일시정지 버튼과 배속 버튼
+                              Row(
+                                children: [
+                                  // 재생/일시정지 버튼
+                                  IconButton(
+                                    icon: Icon(_isPlaying
+                                        ? Icons.pause
+                                        : Icons.play_arrow),
+                                    onPressed: _togglePlayPause,
+                                    iconSize: 36,
+                                  ),
+                                  const SizedBox(width: 8),
 
-                                // 배속 버튼들
-                                Expanded(
-                                  child: SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: Row(
-                                      children: _rates.map((r) {
-                                        final selected = (r == _currentRate);
-                                        return Padding(
-                                          padding:
-                                              const EdgeInsets.only(right: 8),
-                                          child: ChoiceChip(
-                                            label: Text(
-                                              _rateLabel(r),
-                                              style: TextStyle(
-                                                fontWeight: selected
-                                                    ? FontWeight.bold
-                                                    : null,
-                                                fontSize: 13,
+                                  // 배속 버튼들
+                                  Expanded(
+                                    child: SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: Row(
+                                        children: _rates.map((r) {
+                                          final selected = (r == _currentRate);
+                                          return Padding(
+                                            padding:
+                                                const EdgeInsets.only(right: 8),
+                                            child: ChoiceChip(
+                                              label: Text(
+                                                _rateLabel(r),
+                                                style: TextStyle(
+                                                  fontWeight: selected
+                                                      ? FontWeight.bold
+                                                      : null,
+                                                  fontSize: 13,
+                                                ),
                                               ),
+                                              selected: selected,
+                                              onSelected: (_) => _applySpeed(r),
+                                              materialTapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
+                                              visualDensity:
+                                                  VisualDensity.compact,
                                             ),
-                                            selected: selected,
-                                            onSelected: (_) => _applySpeed(r),
-                                            materialTapTargetSize:
-                                                MaterialTapTargetSize
-                                                    .shrinkWrap,
-                                            visualDensity:
-                                                VisualDensity.compact,
-                                          ),
-                                        );
-                                      }).toList(),
+                                          );
+                                        }).toList(),
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                          ],
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],
