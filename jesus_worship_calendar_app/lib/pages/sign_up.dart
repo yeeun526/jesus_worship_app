@@ -64,6 +64,13 @@ class _SignUpPageState extends State<SignUpPage> {
       return;
     }
 
+    // 비밀번호 공백 포함 체크
+    if (pw.contains(' ')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('비밀번호에 공백을 포함할 수 없습니다')),
+      );
+      return;
+    }
     // [결함 2 수정] 비밀번호 길이 체크 (서버 요청 전 차단)
     if (pw.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
