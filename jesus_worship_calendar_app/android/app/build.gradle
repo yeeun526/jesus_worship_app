@@ -9,7 +9,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.jesus_worship_calendar_app"
+    namespace = "com.jesusworship.jesus_worship_calendar_app"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -23,7 +23,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.jesus_worship_calendar_app"
+        applicationId = "com.jesusworship.jesus_worship_calendar_app"
         minSdkVersion = flutter.minSdkVersion
         targetSdk = 36
         versionCode = 1

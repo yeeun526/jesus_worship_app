@@ -3,8 +3,8 @@
 
 ## 1. 테스트 대상
 - 'lib/pages/login.dart' : Firebase Auth 기반 로그인 및 세션 상태 저장
-- 'lib/pages/singup.dart' : 유저 정보 등록 및 Firestore 연동
-- 'lib/pages/CalendarPage.dart 중 _showAddDialog'
+- `lib/pages/sign_up.dart`: 유저 정보 등록 및 Firestore 연동
+- `lib/pages/calendar_page.dart`의 `_showAddDialog`
 
 ## 2. 테스트 베이시스
 - **화이트박스 테스팅** : 소스 코드의 조건문 및 데이터 흐름 분석

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jesus_worship_calendar_app/pages/calendar_page.dart';
+import 'package:jesus_worship_calendar_app/features/calendar/calendar_page.dart';
 
 void main() {
   testWidgets('캘린더 페이지가 정상적으로 로드되고 제목이 표시되는가', (WidgetTester tester) async {

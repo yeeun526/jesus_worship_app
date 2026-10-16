@@ -7,6 +7,8 @@
 - 📆 **행사 및 공연 일정 캘린더**  
 - 👥 **출석 관리 페이지**  
 - 🎥 **영상 / 음원 자료 관리**  
+
+개발 환경 설정과 실행·테스트 방법은 [앱 README](jesus_worship_calendar_app/README.md)를 참고하세요.
   
 ## 📷 시연 화면
 
@@ -35,10 +37,9 @@
    <img src="jesus_worship_calendar_app/images/video3.jpg" width="200"/>
    <img src="jesus_worship_calendar_app/images/video4.jpg" width="200"/>
    
-## 🚀 빌드 & 실행 기록
+## 📝 개발 및 테스트 기록
 - 2025-09-11: app-debug.apk 생성, 갤럭시에서 실행 확인
 - 기능 테스트: 로그인/캘린더/출석/자료 확인 정상 동작
 - 발견 이슈: 음원 실행 시 딜레이 발생, 동영상 업로드 안 됨, 홈화면에서 뒤로가기 버튼 생성됨
-- 추가 이슈: debug apk 실행 불가, 
-
+- 추가 기록: debug APK 실행 불가
 

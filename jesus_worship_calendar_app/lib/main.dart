@@ -8,13 +8,13 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
-import 'providers/user_provider.dart';
-import 'pages/login.dart';
-import 'pages/sign_up.dart';
-import 'pages/calendar_page.dart';
-import 'pages/audio_page.dart';
-import 'pages/video_page.dart';
-import 'pages/attendance_check_page.dart';
+import 'core/providers/user_provider.dart';
+import 'features/auth/login_page.dart';
+import 'features/auth/sign_up_page.dart';
+import 'features/calendar/calendar_page.dart';
+import 'features/audio/audio_page.dart';
+import 'features/video/video_page.dart';
+import 'features/attendance/attendance_check_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
