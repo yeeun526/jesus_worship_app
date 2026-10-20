@@ -8,6 +8,11 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+def uploadStoreFile = System.getenv("JESUS_WORSHIP_UPLOAD_STORE_FILE")
+def uploadStorePassword = System.getenv("JESUS_WORSHIP_UPLOAD_STORE_PASSWORD")
+def uploadKeyAlias = System.getenv("JESUS_WORSHIP_UPLOAD_KEY_ALIAS")
+def uploadKeyPassword = System.getenv("JESUS_WORSHIP_UPLOAD_KEY_PASSWORD")
+
 android {
     namespace = "com.jesusworship.jesus_worship_calendar_app"
     compileSdk = 36
@@ -30,9 +35,18 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        release {
+            storeFile = uploadStoreFile ? file(uploadStoreFile) : null
+            storePassword = uploadStorePassword
+            keyAlias = uploadKeyAlias
+            keyPassword = uploadKeyPassword
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.debug
+            signingConfig = signingConfigs.release
             // 난독화 활성화 (shrinkResources는 리소스 최적화)
             minifyEnabled true
             shrinkResources true
@@ -46,6 +60,33 @@ tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
         kotlinOptions {
             freeCompilerArgs += ['-Xlint:deprecation'] 
         }
+    }
+}
+
+def validateReleaseSigning = tasks.register("validateReleaseSigning") {
+    doLast {
+        def signingValues = [
+            "JESUS_WORSHIP_UPLOAD_STORE_FILE"    : uploadStoreFile,
+            "JESUS_WORSHIP_UPLOAD_STORE_PASSWORD": uploadStorePassword,
+            "JESUS_WORSHIP_UPLOAD_KEY_ALIAS"     : uploadKeyAlias,
+            "JESUS_WORSHIP_UPLOAD_KEY_PASSWORD"  : uploadKeyPassword,
+        ]
+        def missingValues = signingValues.findAll { name, value -> !value?.trim() }.keySet()
+        if (!missingValues.isEmpty()) {
+            throw new GradleException(
+                "Release signing is not configured. Run android\\build_release.ps1 to create/use the upload key."
+            )
+        }
+
+        if (!file(uploadStoreFile).isFile()) {
+            throw new GradleException("Upload keystore does not exist at the configured external path.")
+        }
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name != "validateReleaseSigning" && task.name.contains("Release")) {
+        task.dependsOn(validateReleaseSigning)
     }
 }
 

@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import '../../core/services/firestore_service.dart';
+import '../../core/widgets/permission_widget.dart';
 
 class VideoPlayerPage extends StatefulWidget {
   final String videoUrl;
+  final String videoId;
+  final String title;
 
-  const VideoPlayerPage({super.key, required this.videoUrl});
+  const VideoPlayerPage({
+    super.key,
+    required this.videoUrl,
+    required this.videoId,
+    required this.title,
+  });
 
   @override
   _VideoPlayerPageState createState() => _VideoPlayerPageState();
@@ -13,9 +22,11 @@ class VideoPlayerPage extends StatefulWidget {
 class _VideoPlayerPageState extends State<VideoPlayerPage> {
   late VideoPlayerController _controller;
   bool _isPlaying = false;
+  final _service = FirestoreService();
 
   // 배속 관련
-  final List<double> _rates = const [0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+  final List<double> _rates =
+      List<double>.generate(11, (index) => 0.5 + index / 10);
   double _currentRate = 1.0;
 
   @override
@@ -54,6 +65,37 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     await _controller.setPlaybackSpeed(rate);
   }
 
+  Future<void> _deleteVideo() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('동영상 삭제'),
+        content: Text('“${widget.title}” 동영상을 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await _service.deleteVideo(widget.videoId, widget.videoUrl);
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('동영상 삭제 실패: $error')),
+      );
+    }
+  }
+
   String _rateLabel(double r) {
     final s = r.toStringAsFixed(r == 1.0 ? 0 : 1);
     return '${s}x';
@@ -70,11 +112,21 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('동영상 재생'),
+        title: Text(widget.title),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          PermissionWidget(
+            requiredRole: 'admin',
+            child: IconButton(
+              tooltip: '동영상 삭제',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: _deleteVideo,
+            ),
+          ),
+        ],
       ),
       body: _controller.value.isInitialized
           ? Column(

@@ -23,14 +23,10 @@ class _LoginPageState extends State<LoginPage> {
         email: emailController.text.trim(),
         password: passwordController.text,
       );
-      // 2. 로그인 성공 시 sharedPrefences에 상태 저장
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setBool('isLoggedIn', true);
 
-      // 3. UserProvider에 uid/role 로드
       await context.read<UserProvider>().loadCurrentUser();
-
-      // 4. 캘린더 페이지로 이동
       Navigator.of(context).pushReplacementNamed('/calendar');
     } on FirebaseAuthException catch (e) {
       String errorMessage = '로그인에 실패했습니다.';
@@ -55,14 +51,17 @@ class _LoginPageState extends State<LoginPage> {
         const SnackBar(content: Text('일시적인 오류가 발생했습니다. 다시 시도해주세요.')),
       );
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('로그인')),
+      appBar: AppBar(
+        title: const Text('로그인'),
+        automaticallyImplyLeading: false,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(

@@ -29,11 +29,13 @@ class _AudioPageState extends State<AudioPage> {
   Duration _position = Duration.zero;
 
   // 배속 관련
-  final List<double> _rates = const [0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+  final List<double> _rates =
+      List<double>.generate(11, (index) => 0.5 + index / 10);
   double _currentRate = 1.0;
 
   List<Audio> _audios = [];
   List<Audio> _filteredAudios = [];
+  Audio? _currentAudio;
   final _searchCtrl = TextEditingController();
   String? _loadingAudioId;
 
@@ -321,7 +323,10 @@ class _AudioPageState extends State<AudioPage> {
   }
 
   Future<void> _playNewAudio(Audio audio) async {
-    setState(() => _loadingAudioId = audio.id);
+    setState(() {
+      _loadingAudioId = audio.id;
+      _currentAudio = audio;
+    });
 
     try {
       await _player.stop();
@@ -361,6 +366,9 @@ class _AudioPageState extends State<AudioPage> {
     try {
       await _audioService.deleteAudioFile(audioId);
       if (!mounted) return;
+      if (_currentAudio?.id == audioId) {
+        setState(() => _currentAudio = null);
+      }
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('음원 삭제 완료')));
       _loadAudios();
@@ -417,7 +425,8 @@ class _AudioPageState extends State<AudioPage> {
             floatingActionButton: _isAdmin
                 ? FloatingActionButton(
                     onPressed: _promptUpload,
-                    child: const Icon(Icons.upload_file),
+                    tooltip: '음원 추가',
+                    child: const Icon(Icons.add),
                   )
                 : null,
             body: Column(
@@ -463,13 +472,7 @@ class _AudioPageState extends State<AudioPage> {
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2),
                                     )
-                                  : _isAdmin
-                                      ? IconButton(
-                                          icon: const Icon(Icons.delete),
-                                          onPressed: () =>
-                                              _deleteAudio(audio.id),
-                                        )
-                                      : null,
+                                  : null,
                               onTap: audio.url.isNotEmpty
                                   ? () => _playNewAudio(audio)
                                   : null,
@@ -495,24 +498,46 @@ class _AudioPageState extends State<AudioPage> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // ─── 배속 선택 버튼들 ───
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: Wrap(
-                                  spacing: 8,
-                                  runSpacing: 4,
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      _currentAudio?.title ?? '',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall,
+                                    ),
+                                  ),
+                                  if (_isAdmin && _currentAudio != null)
+                                    IconButton(
+                                      tooltip: '재생 중인 음원 삭제',
+                                      icon: const Icon(Icons.delete_outline),
+                                      onPressed: () =>
+                                          _deleteAudio(_currentAudio!.id),
+                                    ),
+                                ],
+                              ),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
                                   children: _rates.map((r) {
                                     final selected = (r == _currentRate);
-                                    return ChoiceChip(
-                                      label: Text(
-                                        _rateLabel(r),
-                                        style: TextStyle(
-                                          fontWeight:
-                                              selected ? FontWeight.w700 : null,
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 6),
+                                      child: ChoiceChip(
+                                        label: Text(
+                                          _rateLabel(r),
+                                          style: TextStyle(
+                                            fontWeight: selected
+                                                ? FontWeight.w700
+                                                : null,
+                                          ),
                                         ),
+                                        selected: selected,
+                                        onSelected: (_) => _applySpeed(r),
                                       ),
-                                      selected: selected,
-                                      onSelected: (_) => _applySpeed(r),
                                     );
                                   }).toList(),
                                 ),

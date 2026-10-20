@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/services/firestore_service.dart';
+import '../../core/widgets/permission_widget.dart';
 import 'student.dart';
 
 /// 이름(행) × 일요일(열) 그리드 뷰 – 읽기/쓰기 통합 출석부
@@ -24,13 +26,11 @@ class _AttendanceCheckPageState extends State<AttendanceCheckPage> {
   late List<DateTime> _sundays = []; // 이 달의 일요일들
   // ymd -> { uid -> 'present'|'late'|'absent' }
   Map<String, Map<String, String>> _monthStatus = {};
-
-  // 스크롤 동기화(헤더 <-> 본문 가로)
-  final ScrollController _hCtrl = ScrollController();
+  bool _deleteMode = false;
+  String? _selectedStudentUid;
 
   // 셀 사이즈(그림 같은 느낌)
-  static const double _nameColWidth = 120;
-  static const double _cellWidth = 72;
+  static const double _nameColWidth = 104;
   static const double _rowHeight = 40;
 
   @override
@@ -40,12 +40,6 @@ class _AttendanceCheckPageState extends State<AttendanceCheckPage> {
     Intl.defaultLocale = 'ko_KR';
     _focusedMonth = DateTime(now.year, now.month, 1);
     _loadFuture = _loadAll(); // Future 객체 저장
-  }
-
-  @override
-  void dispose() {
-    _hCtrl.dispose();
-    super.dispose();
   }
 
   // ───────────────── data load & update ─────────────────
@@ -200,7 +194,6 @@ class _AttendanceCheckPageState extends State<AttendanceCheckPage> {
       _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1, 1);
       _loadFuture = _loadAll();
     });
-    _hCtrl.jumpTo(0);
   }
 
   Future<void> _nextMonth() async {
@@ -208,7 +201,71 @@ class _AttendanceCheckPageState extends State<AttendanceCheckPage> {
       _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1, 1);
       _loadFuture = _loadAll();
     });
-    _hCtrl.jumpTo(0);
+  }
+
+  bool _isBeforeStudentStart(Student student, DateTime sunday) {
+    final createdAt = student.createdAt;
+    if (createdAt == null) return false;
+    final localCreatedAt = createdAt.toLocal();
+    final startSunday = DateTime(
+      localCreatedAt.year,
+      localCreatedAt.month,
+      localCreatedAt.day - (localCreatedAt.weekday % 7),
+    );
+    return sunday.isBefore(startSunday);
+  }
+
+  Future<void> _deleteSelectedStudent() async {
+    final uid = _selectedStudentUid;
+    Student? student;
+    for (final item in _students) {
+      if (item.uid == uid) {
+        student = item;
+        break;
+      }
+    }
+    if (uid == null || student == null) return;
+    final selectedStudent = student;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('학생 명단 삭제'),
+        content: Text(
+          '${selectedStudent.displayName} 학생의 출석부 명단과 모든 출석 기록을 삭제할까요? '
+          'Firebase 로그인 계정은 삭제되지 않습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await FirestoreService().deleteStudentRosterAndAttendance(uid);
+      if (!mounted) return;
+      setState(() {
+        _deleteMode = false;
+        _selectedStudentUid = null;
+        _loadFuture = _loadAll();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('학생 명단과 출석 기록을 삭제했습니다.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('학생 삭제에 실패했습니다: $error')),
+      );
+    }
   }
 
   // ───────────────── UI ─────────────────
@@ -221,7 +278,7 @@ class _AttendanceCheckPageState extends State<AttendanceCheckPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('출석부 (출석 체크)'),
+        title: const Text('출석 관리'),
         automaticallyImplyLeading: false,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -230,6 +287,17 @@ class _AttendanceCheckPageState extends State<AttendanceCheckPage> {
           },
         ),
         actions: [
+          PermissionWidget(
+            requiredRole: 'admin',
+            child: IconButton(
+              tooltip: _deleteMode ? '삭제 취소' : '학생 삭제',
+              icon: Icon(_deleteMode ? Icons.close : Icons.person_remove),
+              onPressed: () => setState(() {
+                _deleteMode = !_deleteMode;
+                _selectedStudentUid = null;
+              }),
+            ),
+          ),
           IconButton(
               onPressed: _prevMonth, icon: const Icon(Icons.chevron_left)),
           Center(child: Text(titleText, style: const TextStyle(fontSize: 16))),
@@ -261,7 +329,6 @@ class _AttendanceCheckPageState extends State<AttendanceCheckPage> {
               // ── 헤더 행: (고정) 이름칸 + (가로 스크롤) 일요일 날짜들 ──
               _HeaderRow(
                 sundays: _sundays,
-                hCtrl: _hCtrl,
                 students: _students,
                 monthStatus: _monthStatus,
                 today: now,
@@ -292,88 +359,113 @@ class _AttendanceCheckPageState extends State<AttendanceCheckPage> {
                                       .withOpacity(.18)
                                   : Colors.transparent,
                             ),
-                            child: Text(
-                              s.displayName,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13),
+                            child: InkWell(
+                              onTap: _deleteMode
+                                  ? () => setState(() {
+                                        _selectedStudentUid =
+                                            _selectedStudentUid == s.uid
+                                                ? null
+                                                : s.uid;
+                                      })
+                                  : null,
+                              child: Row(
+                                children: [
+                                  if (_deleteMode)
+                                    Icon(
+                                      _selectedStudentUid == s.uid
+                                          ? Icons.check_box
+                                          : Icons.check_box_outline_blank,
+                                      size: 18,
+                                      color: _selectedStudentUid == s.uid
+                                          ? Theme.of(context).colorScheme.error
+                                          : null,
+                                    ),
+                                  if (_deleteMode) const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      s.displayName,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
 
-                          // 가로 스크롤 셀들 (헤더와 컨트롤러 공유)
+                          // Date columns share the available width to avoid horizontal scrolling.
                           Expanded(
-                            child: SingleChildScrollView(
-                              controller: _hCtrl,
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: _sundays.map((d) {
-                                  final ymd = _ymd(d);
+                            child: Row(
+                              children: _sundays
+                                  .map((d) {
+                                    final ymd = _ymd(d);
+                                    final isFutureDate = d.isAfter(now);
+                                    final beforeStudentStart =
+                                        _isBeforeStudentStart(s, d);
 
-                                  // 🎯 미래 날짜인지 확인
-                                  final isFutureDate = d.isAfter(now);
+                                    (String, Color) displaySymbol;
 
-                                  (String, Color) displaySymbol;
+                                    if (isFutureDate || beforeStudentStart) {
+                                      displaySymbol = ('-', Colors.grey);
+                                    } else {
+                                      final currentStatus =
+                                          _monthStatus[ymd]?[s.uid];
+                                      displaySymbol = _symbol(currentStatus);
+                                    }
 
-                                  if (isFutureDate) {
-                                    // 미래 날짜일 경우 '-' 표시
-                                    displaySymbol = ('-', Colors.grey);
-                                  } else {
-                                    // 과거 또는 오늘 날짜일 경우 출석 상태 표시
-                                    final currentStatus =
-                                        _monthStatus[ymd]?[s.uid];
-                                    displaySymbol = _symbol(currentStatus);
-                                  }
+                                    final (ch, color) = displaySymbol;
 
-                                  final (ch, color) = displaySymbol;
-
-                                  // 탭 제스처를 감지하여 상태를 변경합니다.
-                                  return GestureDetector(
-                                    // 미래 날짜일 경우 onTap 비활성화 (null)
-                                    onTap: isFutureDate
-                                        ? null
-                                        : () {
-                                            final currentStatus =
-                                                _monthStatus[ymd]?[s.uid];
-                                            final nextStatus =
-                                                _nextStatus(currentStatus);
-                                            _updateAttendanceStatus(
-                                              ymd: ymd,
-                                              studentUid: s.uid,
-                                              newStatus: nextStatus,
-                                            );
-                                          },
-                                    child: Container(
-                                      width: _cellWidth,
-                                      height: _rowHeight,
-                                      alignment: Alignment.center,
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          right: BorderSide(
-                                            color: Theme.of(context)
-                                                .dividerColor
-                                                .withOpacity(.6),
-                                            width: 0.5,
+                                    return GestureDetector(
+                                      onTap: isFutureDate || beforeStudentStart
+                                          ? null
+                                          : () {
+                                              final currentStatus =
+                                                  _monthStatus[ymd]?[s.uid];
+                                              final nextStatus =
+                                                  _nextStatus(currentStatus);
+                                              _updateAttendanceStatus(
+                                                ymd: ymd,
+                                                studentUid: s.uid,
+                                                newStatus: nextStatus,
+                                              );
+                                            },
+                                      child: Container(
+                                        width: null,
+                                        height: _rowHeight,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 0,
+                                        ),
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            right: BorderSide(
+                                              color: Theme.of(context)
+                                                  .dividerColor
+                                                  .withOpacity(.6),
+                                              width: 0.5,
+                                            ),
+                                          ),
+                                          color: i.isEven
+                                              ? Theme.of(context)
+                                                  .colorScheme
+                                                  .surfaceVariant
+                                                  .withOpacity(.08)
+                                              : null,
+                                        ),
+                                        child: Text(
+                                          ch,
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                            color: color,
+                                            decoration: TextDecoration.none,
                                           ),
                                         ),
-                                        color: i.isEven
-                                            ? Theme.of(context)
-                                                .colorScheme
-                                                .surfaceVariant
-                                                .withOpacity(.08)
-                                            : null,
                                       ),
-                                      child: Text(
-                                        ch,
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w700,
-                                          color: color,
-                                          decoration: TextDecoration.none,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
+                                    );
+                                  })
+                                  .map((cell) => Expanded(child: cell))
+                                  .toList(),
                             ),
                           ),
                         ],
@@ -382,6 +474,23 @@ class _AttendanceCheckPageState extends State<AttendanceCheckPage> {
                   },
                 ),
               ),
+              if (_deleteMode)
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _selectedStudentUid == null
+                            ? null
+                            : _deleteSelectedStudent,
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('선택한 학생 삭제'),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           );
         },
@@ -395,20 +504,17 @@ class _AttendanceCheckPageState extends State<AttendanceCheckPage> {
 class _HeaderRow extends StatelessWidget {
   const _HeaderRow({
     required this.sundays,
-    required this.hCtrl,
     required this.students,
     required this.monthStatus,
     required this.today,
   });
 
   final List<DateTime> sundays;
-  final ScrollController hCtrl;
   final List<Student> students;
   final Map<String, Map<String, String>> monthStatus;
   final DateTime today;
 
-  static const double _nameColWidth = 120;
-  static const double _cellWidth = 72;
+  static const double _nameColWidth = 104;
   static const double _headerHeight = 56;
 
   String _label(DateTime d) {
@@ -418,10 +524,24 @@ class _HeaderRow extends StatelessWidget {
   int _presentCount(DateTime day) {
     final dateKey = DateFormat('yyyy-MM-dd').format(day);
     final statuses = monthStatus[dateKey] ?? {};
-    return students.where((student) {
+    return _eligibleStudents(day).where((student) {
       final status = statuses[student.uid];
       return status == null || status == 'late' || status == 'present';
     }).length;
+  }
+
+  List<Student> _eligibleStudents(DateTime sunday) {
+    return students.where((student) {
+      final createdAt = student.createdAt;
+      if (createdAt == null) return true;
+      final localCreatedAt = createdAt.toLocal();
+      final startSunday = DateTime(
+        localCreatedAt.year,
+        localCreatedAt.month,
+        localCreatedAt.day - (localCreatedAt.weekday % 7),
+      );
+      return !sunday.isBefore(startSunday);
+    }).toList();
   }
 
   @override
@@ -443,16 +563,13 @@ class _HeaderRow extends StatelessWidget {
             ),
           ),
 
-          // 가로 스크롤 날짜 헤더
           Expanded(
-            child: SingleChildScrollView(
-              controller: hCtrl,
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: sundays.map((d) {
-                  final isFutureDate = d.isAfter(today);
-                  return Container(
-                    width: _cellWidth,
+            child: Row(
+              children: sundays.map((d) {
+                final isFutureDate = d.isAfter(today);
+                final eligibleCount = _eligibleStudents(d).length;
+                return Expanded(
+                  child: Container(
                     height: _headerHeight,
                     alignment: Alignment.center,
                     color: Theme.of(context)
@@ -468,15 +585,17 @@ class _HeaderRow extends StatelessWidget {
                         ),
                         Text(
                           isFutureDate
-                              ? '—/${students.length}명'
-                              : '${_presentCount(d)}/${students.length}명',
+                              ? '—/$eligibleCount'
+                              : '${_presentCount(d)}/$eligibleCount',
                           style: Theme.of(context).textTheme.labelSmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
-                  );
-                }).toList(),
-              ),
+                  ),
+                );
+              }).toList(),
             ),
           ),
         ],

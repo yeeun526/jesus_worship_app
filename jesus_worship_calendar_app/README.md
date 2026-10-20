@@ -10,8 +10,49 @@
 ## Android 앱 ID
 
 - 현재 Android 앱 ID: `com.jesusworship.jesus_worship_calendar_app`
-- Firebase Console에 이 ID로 Android 앱을 등록한 뒤 새 `google-services.json`을 `android/app/`에 넣고, FlutterFire CLI로 `lib/firebase_options.dart`를 다시 생성해야 Android에서 Firebase를 사용할 수 있습니다.
-- 이전 `google-services.json`은 `com.example.jesus_worship_calendar_app`에 등록된 설정이므로 새 설정으로 교체하기 전까지 Android 빌드/Firebase 실행이 정상 동작하지 않을 수 있습니다.
+- Firebase Android 앱을 프로젝트에 등록하고 `android/app/google-services.json` 및 `lib/firebase_options.dart`에 새 앱 ID 설정을 반영했습니다.
+
+## Android 출시용 AAB
+
+Windows PowerShell에서 앱 디렉터리 기준으로 아래 스크립트를 실행합니다.
+
+```powershell
+.\android\build_release.ps1
+```
+
+스크립트는 처음 실행할 때 업로드 키 비밀번호를 안전 입력으로 두 번 요청하고,
+저장소 밖의 `%USERPROFILE%\.android\jesus_worship_upload_key.jks`에 키를 만듭니다.
+비밀번호는 디스크나 소스 코드에 저장하지 않고, 해당 실행 프로세스에서만 Gradle에 전달합니다.
+같은 스크립트를 다시 실행하면 기존 키를 덮어쓰지 않고 재사용 여부를 확인합니다.
+
+Google Play Console에 업로드할 파일은 `build\app\outputs\bundle\release\app-release.aab`입니다.
+업로드 키 파일과 비밀번호를 서로 안전한 장소에 백업하고, Git이나 채팅에 올리지 마세요.
+첫 출시 때 Play App Signing을 사용하도록 설정하세요. 앱 업데이트에는 같은 업로드 키가 필요합니다.
+
+## Firebase Functions
+
+관리자 학생 추가 기능은 `functions/`의 callable functions를 사용합니다.
+Firebase CLI와 Node.js 20 이상이 필요하며, Cloud Functions 배포가 가능한 요금제를 설정한 뒤
+아래 명령으로 함수를 배포하세요.
+
+```powershell
+cd functions
+npm install
+cd ..
+firebase deploy --only firestore:rules,functions --project jesus-worship-d3648
+```
+
+함수는 로그인된 사용자의 Firestore 역할이 `admin`인지 확인한 뒤 학생 계정을 생성하거나
+출석부 명단 및 출석 기록을 삭제합니다. 학생 삭제는 Firebase Authentication 로그인 계정을
+삭제하지 않습니다. 새 학생은 첫 로그인 시 임시 비밀번호를 변경해야 합니다.
+
+공개 회원가입에서는 `학생` 또는 `부모`만 선택할 수 있습니다. 최초 관리자는 이메일
+`test@naver.com`으로 가입한 뒤 Firebase Console에서 해당 `users/{uid}` 문서의 `role`을
+`admin`으로 직접 지정하세요. `firestore.rules`는 사용자가 자기 역할을 변경하거나
+관리자 문서를 직접 만들지 못하도록 제한합니다. 규칙을 배포하기 전에 Firebase Console의
+현재 규칙을 검토하고, 프로젝트의 기존 데이터 흐름과 비교하세요. 이 규칙은 이 앱에서
+확인한 Firestore 컬렉션 권한을 정의하며, 다른 서비스가 같은 프로젝트를 사용한다면
+해당 접근 규칙을 먼저 병합해야 합니다.
 
 ## 실행
 

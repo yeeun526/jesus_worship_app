@@ -23,6 +23,25 @@
           "other_platform_oauth_client": []
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:933364418292:android:d30e48d28e1d1ce0af80a1",
+        "android_client_info": {
+          "package_name": "com.jesusworship.jesus_worship_calendar_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB0YA4JsDjqwhP8GbAtMUCFjtqvlo4WZLA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
     }
   ],
   "configuration_version": "1"

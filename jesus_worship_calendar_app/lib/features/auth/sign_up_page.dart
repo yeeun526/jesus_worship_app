@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 import '../../core/services/firestore_service.dart';
+import '../../core/providers/user_provider.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -93,15 +96,20 @@ class _SignUpPageState extends State<SignUpPage> {
         name: name,
       );
 
-      // 3) 성공 알림 & 1초 뒤 로그인 페이지로
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
+      await context.read<UserProvider>().loadCurrentUser();
+
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (_) => const AlertDialog(content: Text('회원가입 완료되었습니다')),
       );
       await Future.delayed(const Duration(seconds: 1));
-      Navigator.of(context).pop(); // 다이얼로그 닫기
-      Navigator.pushReplacementNamed(context, '/login');
+      if (mounted) {
+        Navigator.of(context).pop();
+        Navigator.pushReplacementNamed(context, '/calendar');
+      }
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
         showDialog(
@@ -151,7 +159,6 @@ class _SignUpPageState extends State<SignUpPage> {
             DropdownButton<String>(
               value: _role,
               items: const [
-                DropdownMenuItem(value: 'admin', child: Text('임원')),
                 DropdownMenuItem(value: 'student', child: Text('학생')),
                 DropdownMenuItem(value: 'parent', child: Text('부모')),
               ],

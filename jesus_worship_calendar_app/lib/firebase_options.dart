@@ -40,7 +40,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyB0YA4JsDjqwhP8GbAtMUCFjtqvlo4WZLA',
-    appId: '1:933364418292:android:d4325530eefef92eaf80a1',
+    appId: '1:933364418292:android:d30e48d28e1d1ce0af80a1',
     messagingSenderId: '933364418292',
     projectId: 'jesus-worship-d3648',
     storageBucket: 'jesus-worship-d3648.firebasestorage.app',

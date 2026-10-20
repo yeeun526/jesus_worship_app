@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart' as fb_storage;
 import 'package:file_picker/file_picker.dart';
@@ -12,6 +13,8 @@ import '../models/task.dart';
 import '../models/user.dart';
 
 class FirestoreService {
+  static const privacyPolicyVersion = '2026-10-20-v2';
+
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final fb_storage.FirebaseStorage _storage =
       fb_storage.FirebaseStorage.instance;
@@ -67,6 +70,65 @@ class FirestoreService {
     });
   }
 
+  Future<Map<String, dynamic>?> getPrivacyConsent(String uid) async {
+    final doc = await _db.collection('users').doc(uid).get();
+    final consent = doc.data()?['privacyConsent'];
+    if (consent is Map<String, dynamic>) return consent;
+    return null;
+  }
+
+  Future<bool> hasAcceptedPrivacyPolicy(String uid) async {
+    return isPrivacyConsentComplete(await getPrivacyConsent(uid));
+  }
+
+  Future<bool> hasSensitiveAttendanceConsent(String uid) async {
+    final consent = await getPrivacyConsent(uid);
+    return isPrivacyConsentComplete(consent) &&
+        consent?['sensitiveAttendanceConsent'] == true;
+  }
+
+  static bool isPrivacyConsentComplete(Map<String, dynamic>? consent) {
+    if (consent == null ||
+        consent['policyVersion'] != privacyPolicyVersion ||
+        consent['privacyNoticeAcknowledged'] != true) {
+      return false;
+    }
+
+    if (consent['ageGroup'] == 'under14') {
+      final guardianName = consent['guardianName'];
+      final guardianEmail = consent['guardianEmail'];
+      return consent['guardianConsent'] == true &&
+          guardianName is String &&
+          guardianName.trim().isNotEmpty &&
+          guardianEmail is String &&
+          guardianEmail.trim().isNotEmpty;
+    }
+    return consent['ageGroup'] == '14OrOlder';
+  }
+
+  Future<void> savePrivacyConsent({
+    required String uid,
+    required String ageGroup,
+    required bool sensitiveAttendanceConsent,
+    String? guardianName,
+    String? guardianEmail,
+  }) {
+    return _db.collection('users').doc(uid).set({
+      'privacyConsent': {
+        'policyVersion': privacyPolicyVersion,
+        'privacyNoticeAcknowledged': true,
+        'ageGroup': ageGroup,
+        'guardianConsent': ageGroup == 'under14',
+        'guardianName':
+            ageGroup == 'under14' ? guardianName?.trim() : FieldValue.delete(),
+        'guardianEmail':
+            ageGroup == 'under14' ? guardianEmail?.trim() : FieldValue.delete(),
+        'sensitiveAttendanceConsent': sensitiveAttendanceConsent,
+        'recordedAt': FieldValue.serverTimestamp(),
+      },
+    }, SetOptions(merge: true));
+  }
+
   Future<String> fetchUserRole(String uid) async {
     final doc = await _db.collection('users').doc(uid).get();
     final data = doc.data();
@@ -86,6 +148,42 @@ class FirestoreService {
         name: data['name'] as String?,
       );
     }).toList();
+  }
+
+  Future<({String email, String password})> createStudentAccount({
+    required String name,
+    required String email,
+  }) async {
+    final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
+        .httpsCallable('createStudentAccount');
+    final result = await callable.call({'name': name, 'email': email});
+    final data = result.data;
+    if (data is! Map ||
+        data['email'] is! String ||
+        data['password'] is! String) {
+      throw const FormatException('학생 계정 생성 결과를 읽을 수 없습니다.');
+    }
+    return (
+      email: data['email'] as String,
+      password: data['password'] as String
+    );
+  }
+
+  Future<void> deleteStudentRosterAndAttendance(String studentUid) async {
+    final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
+        .httpsCallable('deleteStudentRosterAndAttendance');
+    await callable.call({'studentUid': studentUid});
+  }
+
+  Future<bool> requiresPasswordChange(String uid) async {
+    final user = await _db.collection('users').doc(uid).get();
+    return user.data()?['requirePasswordChange'] == true;
+  }
+
+  Future<void> completeStudentPasswordChange(String password) async {
+    final callable = FirebaseFunctions.instanceFor(region: 'us-central1')
+        .httpsCallable('completeStudentPasswordChange');
+    await callable.call({'password': password});
   }
 
   // ─────────────────────────────── Attendance ───────────────────────────────

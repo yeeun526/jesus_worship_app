@@ -10,11 +10,12 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/providers/user_provider.dart';
 import 'features/auth/login_page.dart';
+import 'features/auth/authenticated_gate.dart';
+import 'features/auth/account_management_page.dart';
+import 'features/auth/privacy_consent_page.dart';
 import 'features/auth/sign_up_page.dart';
-import 'features/calendar/calendar_page.dart';
 import 'features/audio/audio_page.dart';
 import 'features/video/video_page.dart';
-import 'features/attendance/attendance_check_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -62,12 +63,14 @@ class MyApp extends StatelessWidget {
         Locale('en', 'US'),
       ],
       // isLoggedIn 값에 따라 초기 화면을 결정합니다.
-      home: isLoggedIn ? const CalendarPage() : const LoginPage(),
+      home: isLoggedIn ? const AuthenticatedGate() : const LoginPage(),
       routes: {
         '/login': (context) => const LoginPage(),
+        '/account': (context) => const AccountManagementPage(),
         '/signup': (context) => const SignUpPage(),
-        '/calendar': (context) => const CalendarPage(),
-        '/attendance_check': (context) => const AttendanceCheckPage(),
+        '/calendar': (context) => const AuthenticatedGate(),
+        '/privacy-consent': (context) => const PrivacyConsentPage(),
+        '/attendance_check': (context) => const AttendanceConsentGate(),
         '/audio': (context) => const AudioPage(),
         '/video': (context) => const VideoPage(),
       },

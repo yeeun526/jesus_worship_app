@@ -149,30 +149,6 @@ class _VideoPageState extends State<VideoPage> {
     }
   }
 
-  Future<void> _deleteVideo(String id, String url) async {
-    setState(() {
-      _uploading = true; // 같은 오버레이 재사용
-      _uploadProgress = 0.0;
-    });
-    try {
-      await _service.deleteVideo(id, url);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('영상 삭제 완료')));
-      await _fetchVideos();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('영상 삭제 실패: $e')));
-    } finally {
-      if (!mounted) return;
-      setState(() {
-        _uploading = false;
-        _uploadProgress = 0.0;
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext ctx) {
     return Stack(
@@ -203,22 +179,19 @@ class _VideoPageState extends State<VideoPage> {
                     return ListTile(
                       title: Text(v['title'] ?? '제목 없음'),
                       onTap: () {
-                        Navigator.push(
+                        Navigator.push<bool>(
                           context,
                           MaterialPageRoute(
-                            builder: (_) =>
-                                VideoPlayerPage(videoUrl: v['url'] ?? ''),
+                            builder: (_) => VideoPlayerPage(
+                              videoUrl: v['url'] ?? '',
+                              videoId: v['id'] ?? '',
+                              title: v['title'] ?? '동영상 재생',
+                            ),
                           ),
-                        );
+                        ).then((deleted) {
+                          if (deleted == true) _fetchVideos();
+                        });
                       },
-                      trailing: PermissionWidget(
-                        requiredRole: 'admin',
-                        child: IconButton(
-                          icon: const Icon(Icons.delete),
-                          onPressed: () =>
-                              _deleteVideo(v['id'] ?? '', v['url'] ?? ''),
-                        ),
-                      ),
                     );
                   },
                 ),
